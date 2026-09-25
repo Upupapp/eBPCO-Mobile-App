@@ -74,7 +74,7 @@ class _ExportDataScreenState extends State<ExportDataScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
         children: [
-          const SoftIconTile(icon: Icons.download_outlined, size: 56),
+          const Align(alignment: Alignment.centerLeft, child: SoftIconTile(icon: Icons.download_outlined, size: 56)),
           const SizedBox(height: 16),
           Text('Your data, in one file', style: SoftType.h1.copyWith(fontSize: 24)),
           const SizedBox(height: 8),

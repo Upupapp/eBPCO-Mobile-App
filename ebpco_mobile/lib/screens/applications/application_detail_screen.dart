@@ -343,7 +343,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           const SizedBox(height: 14),
           _AssessmentCard(order: app.orderOfPayment!, paid: app.paymentStatus == 'Paid'),
         ],
-        if (app.lifecycleStatus != 'Draft' && _missingRequired.isNotEmpty) ...[
+        if (!const {'Draft', 'Cancelled', 'Rejected', 'Expired', 'Released', 'Completed'}.contains(app.lifecycleStatus) &&
+            _missingRequired.isNotEmpty) ...[
           const SizedBox(height: 14),
           SoftCard(
             color: SoftColors.dangerSoft,

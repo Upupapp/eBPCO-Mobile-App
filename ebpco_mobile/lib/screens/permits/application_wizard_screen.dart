@@ -591,7 +591,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             items: active
                 .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
                 .toList(),
-            onChanged: (v) => setState(() => _businessId = v),
+            onChanged: (v) => setState(() {
+              _businessId = v;
+              _error = null;
+            }),
           ),
         const SizedBox(height: 18),
         _label('Application Type'),
