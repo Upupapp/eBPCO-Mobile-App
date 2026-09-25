@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../../domain/legal_copy.dart';
 import '../../domain/lgu_contact.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 
 /// Every contact value here comes from `domain/lgu_contact.dart`, itself
 /// transcribed from bundled LGU documents on the web portal — never a
@@ -66,70 +66,87 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   Widget build(BuildContext context) {
     const offices = [municipalEngineer, planningAndDevelopment];
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Help & Support')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          children: [
-            Text('Frequently asked questions and contact information.', style: AppTypography.body),
-            const SizedBox(height: AppSpacing.lg),
-            SoftCard(
-              child: Column(
-                children: _faqs
-                    .map((item) => Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            InkWell(
-                              onTap: () => setState(() => _open = _open == item.q ? null : item.q),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                child: Text(item.q, style: AppTypography.bodyMedium),
+    return SoftPageScaffold(
+      title: 'Help & Support',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        children: [
+          Text('Frequently asked questions and contact information.', style: SoftType.body.copyWith(fontSize: 15)),
+          const SizedBox(height: 16),
+          const SoftSectionHeader(title: 'FAQs'),
+          SoftCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (final (i, item) in _faqs.indexed) ...[
+                  if (i > 0) const Divider(height: 1, color: SoftColors.line),
+                  InkWell(
+                    onTap: () => setState(() => _open = _open == item.q ? null : item.q),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: Text(item.q, style: SoftType.tileTitle)),
+                              AnimatedRotation(
+                                turns: _open == item.q ? 0.5 : 0,
+                                duration: const Duration(milliseconds: 200),
+                                child: const Icon(Icons.expand_more_rounded, color: SoftColors.muted),
                               ),
-                            ),
-                            if (_open == item.q)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Text(item.a, style: AppTypography.caption),
-                              ),
-                            const Divider(height: 1, color: AppColors.borderLight),
+                            ],
+                          ),
+                          if (_open == item.q) ...[
+                            const SizedBox(height: 8),
+                            Text(item.a, style: SoftType.body),
                           ],
-                        ))
-                    .toList(),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SoftCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Contact', style: AppTypography.h3),
-                  const SizedBox(height: 4),
-                  Text(municipalHallAddress, style: AppTypography.caption),
-                  for (final office in offices) ...[
-                    const Divider(height: AppSpacing.xxl, color: AppColors.borderLight),
-                    Text(office.name, style: AppTypography.bodyMedium),
-                    Text(office.handles, style: AppTypography.caption),
-                    const SizedBox(height: 4),
-                    if (office.mobile != null) Text('Mobile: ${office.mobile}', style: AppTypography.body),
-                    GestureDetector(
-                      onTap: () => _copyEmail(office.email),
-                      child: Text('Email: ${office.email}', style: AppTypography.body.copyWith(color: AppColors.primary600)),
+                        ],
+                      ),
                     ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  Text(inquiryTurnaround, style: AppTypography.caption),
-                  const SizedBox(height: AppSpacing.md),
-                  ElevatedButton(
-                    onPressed: () => _copyEmail(municipalEngineer.email),
-                    child: Text('Email the ${municipalEngineer.shortName}'),
                   ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          const SoftSectionHeader(title: 'Contact'),
+          SoftCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SoftIconTile(icon: Icons.place_outlined, size: 40),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(municipalHallAddress, style: SoftType.body.copyWith(color: SoftColors.ink))),
+                  ],
+                ),
+                for (final office in offices) ...[
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Divider(height: 1, color: SoftColors.line)),
+                  Text(office.name, style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(office.handles, style: SoftType.tileSub),
+                  const SizedBox(height: 8),
+                  if (office.mobile != null) Text('Mobile: ${office.mobile}', style: SoftType.body.copyWith(color: SoftColors.ink)),
+                  GestureDetector(
+                    onTap: () => _copyEmail(office.email),
+                    child: Text('Email: ${office.email}', style: SoftType.body.copyWith(color: SoftColors.primary)),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Text(inquiryTurnaround, style: SoftType.body),
+                const SizedBox(height: 14),
+                SoftPillButton(
+                  label: 'Email the ${municipalEngineer.shortName}',
+                  icon: Icons.mail_outline_rounded,
+                  onPressed: () => _copyEmail(municipalEngineer.email),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/legal_copy.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_page.dart';
 
 class LegalScreen extends StatefulWidget {
   const LegalScreen({super.key});
@@ -18,59 +17,78 @@ class _LegalScreenState extends State<LegalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(_showPrivacy ? 'Privacy Policy' : 'Terms & Conditions')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+    return SoftPageScaffold(
+      title: _showPrivacy ? 'Privacy Policy' : 'Terms & Conditions',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: SoftColors.white,
+                borderRadius: BorderRadius.circular(SoftRadius.pill),
+                border: Border.all(color: SoftColors.line),
+              ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => setState(() => _showPrivacy = false),
-                      style: !_showPrivacy ? OutlinedButton.styleFrom(backgroundColor: AppColors.primary500, foregroundColor: Colors.white) : null,
-                      child: const Text('Terms'),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => setState(() => _showPrivacy = true),
-                      style: _showPrivacy ? OutlinedButton.styleFrom(backgroundColor: AppColors.primary500, foregroundColor: Colors.white) : null,
-                      child: const Text('Privacy'),
-                    ),
-                  ),
+                  Expanded(child: _Segment(label: 'Terms', selected: !_showPrivacy, onTap: () => setState(() => _showPrivacy = false))),
+                  Expanded(child: _Segment(label: 'Privacy', selected: _showPrivacy, onTap: () => setState(() => _showPrivacy = true))),
                 ],
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.xxl, 0, AppSpacing.xxl, AppSpacing.xxl),
-                children: _showPrivacy
-                    ? privacyPolicySections
-                        .map((s) => Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                              child: SoftCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(s.heading, style: AppTypography.h3),
-                                    const SizedBox(height: 8),
-                                    for (final p in s.paragraphs)
-                                      Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(p, style: AppTypography.body)),
-                                  ],
-                                ),
-                              ),
-                            ))
-                        .toList()
-                    : [SoftCard(child: Text(termsConditionsText, style: AppTypography.body))],
-              ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              children: _showPrivacy
+                  ? [
+                      for (final s in privacyPolicySections)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SoftCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(s.heading, style: SoftType.section.copyWith(fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 8),
+                                for (final p in s.paragraphs)
+                                  Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(p, style: SoftType.body.copyWith(color: SoftColors.ink))),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ]
+                  : [SoftCard(child: Text(termsConditionsText, style: SoftType.body.copyWith(color: SoftColors.ink)))],
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _Segment({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? SoftColors.primary : SoftColors.clear,
+          borderRadius: BorderRadius.circular(SoftRadius.pill),
+          boxShadow: selected ? SoftShadows.primary : null,
         ),
+        child: Text(label, style: SoftType.button.copyWith(color: selected ? SoftColors.white : SoftColors.muted)),
       ),
     );
   }

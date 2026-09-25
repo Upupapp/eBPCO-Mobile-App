@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/castilla.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import 'registration_success_screen.dart';
 
 /// Three steps — Personal, Contact (incl. real email verification), Security
@@ -152,25 +153,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create Account')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _StepIndicator(step: _step),
-              const SizedBox(height: AppSpacing.xxl),
-              if (_step == 1) _personalStep(),
-              if (_step == 2) _contactStep(),
-              if (_step == 3) _securityStep(),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(_error!, style: AppTypography.error),
-              ],
+    const titles = ['Personal details', 'Contact & address', 'Secure your account'];
+    return SoftPageScaffold(
+      title: 'Create Account',
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _StepIndicator(step: _step),
+            const SizedBox(height: 18),
+            Text(titles[_step - 1], style: SoftType.h1.copyWith(fontSize: 24)),
+            const SizedBox(height: 18),
+            if (_step == 1) _personalStep(),
+            if (_step == 2) _contactStep(),
+            if (_step == 3) _securityStep(),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              Text(_error!, style: AppTypography.error),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -178,15 +180,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _field(String label, TextEditingController controller, {TextInputType? keyboardType, bool obscure = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: AppTypography.fieldLabel),
-          const SizedBox(height: 6),
-          TextField(controller: controller, keyboardType: keyboardType, obscureText: obscure),
+          SoftFieldLabel(label),
+          TextField(controller: controller, keyboardType: keyboardType, obscureText: obscure, style: SoftType.field),
         ],
       ),
+    );
+  }
+
+  Widget _navRow({required VoidCallback onBack, required String nextLabel, required VoidCallback onNext, bool busy = false}) {
+    return Row(
+      children: [
+        Expanded(child: SoftPillButton(label: 'Back', kind: SoftPillKind.outline, onPressed: busy ? null : onBack)),
+        const SizedBox(width: 12),
+        Expanded(flex: 2, child: SoftPillButton(label: nextLabel, busy: busy, onPressed: onNext)),
+      ],
     );
   }
 
@@ -197,10 +208,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _field('First Name', _firstName),
         _field('Middle Name (optional)', _middleName),
         _field('Last Name', _lastName),
-        Text('Date of Birth', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        OutlinedButton(
-          onPressed: () async {
+        const SoftFieldLabel('Date of Birth'),
+        SoftPickerField(
+          value: _dob == null ? null : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
+          placeholder: 'Select date',
+          onTap: () async {
             final picked = await showDatePicker(
               context: context,
               initialDate: DateTime(2000, 1, 1),
@@ -209,30 +221,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
             );
             if (picked != null) setState(() => _dob = picked);
           },
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(_dob == null ? 'Select date' : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'),
-          ),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Sex', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
+        const SizedBox(height: 16),
+        const SoftFieldLabel('Sex'),
         DropdownButtonFormField<String>(
           initialValue: _sex,
+          borderRadius: BorderRadius.circular(SoftRadius.md),
           items: const ['Male', 'Female', 'Prefer not to say'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
           onChanged: (v) => setState(() => _sex = v ?? _sex),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Civil Status', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
+        const SizedBox(height: 16),
+        const SoftFieldLabel('Civil Status'),
         DropdownButtonFormField<String>(
           initialValue: _civilStatus,
+          borderRadius: BorderRadius.circular(SoftRadius.md),
           items: const ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
           onChanged: (v) => setState(() => _civilStatus = v ?? _civilStatus),
         ),
+        const SizedBox(height: 16),
         _field('Nationality', _nationality),
-        const SizedBox(height: AppSpacing.md),
-        ElevatedButton(onPressed: _toStep2, child: const Text('Continue')),
+        const SizedBox(height: 10),
+        SoftPillButton(label: 'Continue', onPressed: _toStep2),
       ],
     );
   }
@@ -241,18 +250,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Email', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
+        const SoftFieldLabel('Email'),
         TextField(
           controller: _email,
           keyboardType: TextInputType.emailAddress,
           enabled: !_emailVerified,
+          style: SoftType.field,
           decoration: InputDecoration(
-            suffixIcon: _emailVerified ? const Icon(Icons.check_circle, color: AppColors.success) : null,
+            hintText: 'you@example.com',
+            suffixIcon: _emailVerified
+                ? const Padding(padding: EdgeInsets.only(right: 12), child: Icon(Icons.check_circle_rounded, color: SoftColors.verifiedInk))
+                : null,
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        if (!_emailVerified)
+        const SizedBox(height: 8),
+        if (_emailVerified)
+          Align(alignment: Alignment.centerLeft, child: SoftStatusPill(label: 'Email verified', tone: SoftStatusTone.verified))
+        else
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
@@ -261,62 +275,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         if (_codeSent && !_emailVerified) ...[
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: TextField(controller: _code, decoration: const InputDecoration(hintText: '6-digit code'))),
-              const SizedBox(width: AppSpacing.sm),
-              ElevatedButton(onPressed: _confirmCode, child: const Text('Verify')),
+              Expanded(
+                child: TextField(
+                  controller: _code,
+                  keyboardType: TextInputType.number,
+                  style: SoftType.field,
+                  decoration: const InputDecoration(hintText: '6-digit code'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(width: 110, child: SoftPillButton(label: 'Verify', onPressed: _confirmCode)),
             ],
           ),
         ],
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: 16),
         _field('Mobile Number', _mobile, keyboardType: TextInputType.phone),
         _field('Street Address', _street),
-        Text('Barangay', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
+        const SoftFieldLabel('Barangay'),
         DropdownButtonFormField<String>(
           initialValue: _barangay,
           hint: const Text('Select barangay'),
           isExpanded: true,
+          borderRadius: BorderRadius.circular(SoftRadius.md),
           items: castillaBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
           onChanged: (v) => setState(() => _barangay = v),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('City / Municipality', style: AppTypography.fieldLabel),
-                  const SizedBox(height: 6),
-                  TextField(controller: TextEditingController(text: castillaCity), enabled: false),
+                  const SoftFieldLabel('City / Municipality'),
+                  TextField(controller: TextEditingController(text: castillaCity), enabled: false, style: SoftType.field),
                 ],
               ),
             ),
-            const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Province', style: AppTypography.fieldLabel),
-                  const SizedBox(height: 6),
-                  TextField(controller: TextEditingController(text: castillaProvince), enabled: false),
+                  const SoftFieldLabel('Province'),
+                  TextField(controller: TextEditingController(text: castillaProvince), enabled: false, style: SoftType.field),
                 ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: 16),
         _field('ZIP Code', _postal, keyboardType: TextInputType.number),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton(onPressed: () => setState(() => _step = 1), child: const Text('Back'))),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(flex: 2, child: ElevatedButton(onPressed: _toStep3, child: const Text('Continue'))),
-          ],
-        ),
+        const SizedBox(height: 10),
+        _navRow(onBack: () => setState(() => _step = 1), nextLabel: 'Continue', onNext: _toStep3),
       ],
     );
   }
@@ -327,23 +341,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         _field('Password', _password, obscure: true),
         _field('Confirm Password', _confirmPassword, obscure: true),
-        Text('At least 8 characters.', style: AppTypography.hint),
-        const SizedBox(height: AppSpacing.xl),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton(onPressed: () => setState(() => _step = 2), child: const Text('Back'))),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                    : const Text('Create Account'),
-              ),
-            ),
-          ],
-        ),
+        Text('At least 8 characters.', style: SoftType.cellLabel),
+        const SizedBox(height: 24),
+        _navRow(onBack: () => setState(() => _step = 2), nextLabel: 'Create Account', onNext: _submit, busy: _submitting),
       ],
     );
   }
@@ -355,25 +355,30 @@ class _StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget dot(int n, String label) {
-      final active = n == step;
-      final done = n < step;
-      return Column(
-        children: [
-          CircleAvatar(
-            radius: 13,
-            backgroundColor: active || done ? AppColors.primary500 : AppColors.gray200,
-            child: Text('$n', style: AppTypography.caption.copyWith(color: active || done ? Colors.white : AppColors.gray500, fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: AppTypography.caption),
-        ],
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [dot(1, 'Personal'), dot(2, 'Contact'), dot(3, 'Security')],
+    const labels = ['Personal', 'Contact', 'Security'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Step $step of 3 · ${labels[step - 1]}', style: SoftType.eyebrow),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: i < step ? SoftColors.primary : SoftColors.line,
+                    borderRadius: BorderRadius.circular(SoftRadius.pill),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }

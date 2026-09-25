@@ -4,10 +4,10 @@ import 'package:provider/provider.dart';
 
 import '../../domain/models.dart';
 import '../../services/applications_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import 'payment_flow_screen.dart';
 
@@ -36,36 +36,27 @@ class _PaymentsListScreenState extends State<PaymentsListScreen> {
     final apps = context.watch<ApplicationsService>();
     final rows = apps.applications.where((a) => a.orderOfPayment != null).toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Payments')),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => context.read<ApplicationsService>().refresh(),
-          child: apps.loading && apps.applications.isEmpty
-              ? const Center(child: CircularProgressIndicator())
-              : rows.isEmpty
-                  ? ListView(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xxxl),
-                          child: Text(
-                            'No assessments issued yet. Once your application is evaluated, its Order of Payment will appear here.',
-                            style: AppTypography.body,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 24),
-                      itemCount: rows.length,
-                      itemBuilder: (context, i) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _PaymentRow(application: rows[i]),
-                      ),
+    return SoftPageScaffold(
+      title: 'Payments',
+      body: RefreshIndicator(
+        onRefresh: () => context.read<ApplicationsService>().refresh(),
+        child: apps.loading && apps.applications.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : rows.isEmpty
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    children: const [
+                      SoftEmptyCard('No assessments issued yet. Once your application is evaluated, its Order of Payment will appear here.'),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    itemCount: rows.length,
+                    itemBuilder: (context, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _PaymentRow(application: rows[i]),
                     ),
-        ),
+                  ),
       ),
     );
   }
@@ -80,49 +71,60 @@ class _PaymentRow extends StatelessWidget {
   // already sent proof must not be invited to send it twice.
   bool get _canPay => application.paymentStatus == 'Not Yet Available' || application.paymentStatus == 'Overdue';
 
-  Color get _tone => switch (application.paymentStatus) {
-        'Paid' => AppColors.success,
-        'Overdue' => AppColors.danger,
-        _ => AppColors.warning,
-      };
-
-  Color get _toneBg => switch (application.paymentStatus) {
-        'Paid' => AppColors.success100,
-        'Overdue' => AppColors.danger100,
-        _ => AppColors.warning100,
+  SoftStatusTone get _tone => switch (application.paymentStatus) {
+        'Paid' => SoftStatusTone.verified,
+        'Overdue' => SoftStatusTone.danger,
+        _ => SoftStatusTone.pending,
       };
 
   @override
   Widget build(BuildContext context) {
     return SoftCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text(application.referenceNumber, style: AppTypography.cardTitle)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: _toneBg, borderRadius: BorderRadius.circular(999)),
-                child: Text(application.paymentStatus, style: AppTypography.caption.copyWith(color: _tone, fontWeight: FontWeight.w700)),
+              const SoftIconTile(icon: Icons.receipt_long_outlined),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(application.permitType, style: SoftType.tileTitle.copyWith(fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(application.referenceNumber, style: SoftType.tileSub),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(pesos(application.orderOfPayment!.totalCentavos), style: AppTypography.h3),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: _canPay
-                ? ElevatedButton(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentFlowScreen(applicationId: application.id))),
-                    child: const Text('Pay Now'),
-                  )
-                : OutlinedButton(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: application.id))),
-                    child: const Text('View Details'),
-                  ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  pesos(application.orderOfPayment!.totalCentavos),
+                  style: SoftType.h1.copyWith(fontSize: 24),
+                ),
+              ),
+              SoftStatusPill(label: application.paymentStatus, tone: _tone),
+            ],
           ),
+          const SizedBox(height: 14),
+          _canPay
+              ? SoftPillButton(
+                  label: 'Pay Now',
+                  icon: Icons.payments_outlined,
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentFlowScreen(applicationId: application.id))),
+                )
+              : SoftPillButton(
+                  label: 'View Details',
+                  kind: SoftPillKind.outline,
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: application.id))),
+                ),
         ],
       ),
     );

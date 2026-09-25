@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../domain/models.dart';
 import '../../services/businesses_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import 'business_detail_screen.dart';
 import 'register_business_screen.dart';
 
@@ -24,57 +24,39 @@ class _BusinessListScreenState extends State<BusinessListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => context.read<BusinessesService>().refresh());
   }
 
+  Future<void> _register() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()));
+    if (mounted) context.read<BusinessesService>().refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final businesses = context.watch<BusinessesService>();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('My Businesses'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()))
-                .then((_) => context.read<BusinessesService>().refresh()),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => context.read<BusinessesService>().refresh(),
-          child: businesses.loading && businesses.businesses.isEmpty
-              ? const Center(child: CircularProgressIndicator())
-              : businesses.businesses.isEmpty
-                  ? ListView(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xxxl),
-                          child: Column(
-                            children: [
-                              Text('No businesses yet.', style: AppTypography.body, textAlign: TextAlign.center),
-                              const SizedBox(height: AppSpacing.lg),
-                              ElevatedButton(
-                                onPressed: () => Navigator.of(context)
-                                    .push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()))
-                                    .then((_) => context.read<BusinessesService>().refresh()),
-                                child: const Text('Register a Business'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 24),
-                      itemCount: businesses.businesses.length,
-                      itemBuilder: (context, i) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _BusinessRow(business: businesses.businesses[i]),
-                      ),
+    return SoftPageScaffold(
+      title: 'My Businesses',
+      actions: [SoftBarAction(icon: Icons.add_rounded, tooltip: 'Register a Business', onPressed: _register)],
+      body: RefreshIndicator(
+        onRefresh: () => context.read<BusinessesService>().refresh(),
+        child: businesses.loading && businesses.businesses.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : businesses.businesses.isEmpty
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    children: [
+                      const SoftEmptyCard('No businesses yet.'),
+                      const SizedBox(height: 16),
+                      SoftPillButton(label: 'Register a Business', icon: Icons.add_rounded, onPressed: _register),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    itemCount: businesses.businesses.length,
+                    itemBuilder: (context, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _BusinessRow(business: businesses.businesses[i]),
                     ),
-        ),
+                  ),
       ),
     );
   }
@@ -88,29 +70,24 @@ class _BusinessRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return SoftCard(
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BusinessDetailScreen(businessId: business.id))),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
+          const SoftIconTile(icon: Icons.storefront_outlined),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(business.name, style: AppTypography.cardTitle),
+                Text(business.name, style: SoftType.tileTitle.copyWith(fontSize: 16)),
                 const SizedBox(height: 2),
-                Text('${business.category} · ${business.barangay}', style: AppTypography.cardSubtitle),
+                Text('${business.category} · ${business.barangay}', style: SoftType.tileSub),
+                const SizedBox(height: 8),
+                SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: business.isActive ? AppColors.success100 : AppColors.gray100,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              business.status,
-              style: AppTypography.caption.copyWith(color: business.isActive ? AppColors.successText : AppColors.gray600, fontWeight: FontWeight.w700),
-            ),
-          ),
+          const Icon(Icons.chevron_right_rounded, color: SoftColors.chevron),
         ],
       ),
     );

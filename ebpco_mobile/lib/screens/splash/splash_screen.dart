@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../theme/app_colors.dart';
-import '../../theme/app_typography.dart';
+import '../../services/session_service.dart';
+import '../../theme/soft_widget.dart';
 import '../auth/login_screen.dart';
 import '../home/root_shell.dart';
-import '../../services/session_service.dart';
+import '../onboarding/onboarding_screen.dart';
 
-/// Every launch starts here: restores the stored session (if any), then
-/// hands off to [LoginScreen] or [RootShell] — mirrors the design
-/// reference's own splash → AuthGate handoff shape, but against a real
-/// server call instead of a mock delay.
+/// Every launch starts here — the design reference's splash (one solid
+/// brand color, the seal in rings, nothing else) in eBPCO red. Restores the
+/// stored session against the real API, then hands off: signed in →
+/// [RootShell]; first run → [OnboardingScreen]; otherwise [LoginScreen].
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -28,42 +28,57 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _restore() async {
     final session = context.read<SessionService>();
     await session.restore();
+    final onboardingDone = await OnboardingPrefs.isDone();
     if (!mounted) return;
+    final Widget next = session.isSignedIn
+        ? const RootShell()
+        : onboardingDone
+            ? const LoginScreen()
+            : const OnboardingScreen();
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => session.isSignedIn ? const RootShell() : const LoginScreen()),
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => next,
+        transitionDuration: const Duration(milliseconds: 380),
+        transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary600,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 96,
-              height: 96,
-              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-              padding: const EdgeInsets.all(12),
-              child: Image.asset('assets/images/ebpco_seal.png', fit: BoxFit.contain),
+      backgroundColor: SoftColors.primaryDeep,
+      body: Stack(
+        children: [
+          Center(
+            child: Container(
+              width: 196,
+              height: 196,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: SoftColors.white, width: 4),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: SoftColors.white,
+                  border: Border.all(color: SoftColors.gold, width: 5),
+                ),
+                child: Image.asset('assets/images/ebpco_seal.png', fit: BoxFit.contain),
+              ),
             ),
-            const SizedBox(height: 20),
-            Text('eBPCO', style: AppTypography.wordmark.copyWith(fontSize: 26)),
-            const SizedBox(height: 4),
-            Text(
-              'Municipality of Castilla, Sorsogon',
-              style: AppTypography.caption.copyWith(color: Colors.white.withValues(alpha: 0.85)),
+          ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 64,
+            child: Center(
+              child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2, color: SoftColors.white)),
             ),
-            const SizedBox(height: 32),
-            const SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

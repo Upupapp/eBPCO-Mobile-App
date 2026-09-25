@@ -5,10 +5,10 @@ import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
 import '../../services/businesses_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import 'edit_business_screen.dart';
 
 class BusinessDetailScreen extends StatefulWidget {
@@ -40,72 +40,69 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
     }
   }
 
+  Future<void> _edit(Business business) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => EditBusinessScreen(business: business)));
+    if (mounted) context.read<BusinessesService>().refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final matches = context.watch<BusinessesService>().businesses.where((b) => b.id == widget.businessId);
     final business = matches.isEmpty ? null : matches.first;
 
     if (business == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const SoftPageScaffold(title: 'Business', body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(business.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => EditBusinessScreen(business: business)))
-                .then((_) => context.read<BusinessesService>().refresh()),
+    return SoftPageScaffold(
+      title: 'Business',
+      actions: [SoftBarAction(icon: Icons.edit_outlined, tooltip: 'Edit', onPressed: () => _edit(business))],
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        children: [
+          Row(
+            children: [
+              const SoftIconTile(icon: Icons.storefront_outlined, size: 56),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(business.name, style: SoftType.h1.copyWith(fontSize: 24)),
+                    const SizedBox(height: 2),
+                    Text(business.category, style: SoftType.body.copyWith(fontSize: 15)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
+          ),
+          const SizedBox(height: 18),
+          SoftCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Row('Address', '${business.street}, ${business.barangay}, ${business.city}, ${business.province}'),
+                const Divider(height: 1, color: SoftColors.line),
+                _Row('DTI/SEC No.', business.registrationNumber),
+                const Divider(height: 1, color: SoftColors.line),
+                _Row('Date Registered', business.dateRegistered.substring(0, 10)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          SoftPillButton(
+            label: business.isActive ? 'Deactivate Business' : 'Reactivate Business',
+            kind: business.isActive ? SoftPillKind.dangerSoft : SoftPillKind.outline,
+            busy: _busy,
+            onPressed: _busy ? null : () => _toggleActive(business),
           ),
         ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          children: [
-            SoftCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: Text(business.name, style: AppTypography.h2)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: business.isActive ? AppColors.success100 : AppColors.gray100,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          business.status,
-                          style: AppTypography.caption.copyWith(color: business.isActive ? AppColors.successText : AppColors.gray600, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(business.category, style: AppTypography.body),
-                  const Divider(height: AppSpacing.xxl),
-                  _Row('Address', '${business.street}, ${business.barangay}, ${business.city}, ${business.province}'),
-                  _Row('DTI/SEC No.', business.registrationNumber),
-                  _Row('Date Registered', business.dateRegistered.substring(0, 10)),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            OutlinedButton(
-              onPressed: _busy ? null : () => _toggleActive(business),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: business.isActive ? AppColors.danger : AppColors.success,
-                side: BorderSide(color: business.isActive ? AppColors.danger100 : AppColors.success100),
-              ),
-              child: Text(business.isActive ? 'Deactivate Business' : 'Reactivate Business'),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -119,12 +116,13 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppTypography.caption),
-          Text(value, style: AppTypography.bodyMedium),
+          Text(label, style: SoftType.cellLabel.copyWith(fontSize: 13)),
+          const SizedBox(height: 2),
+          Text(value, style: SoftType.cellValue),
         ],
       ),
     );

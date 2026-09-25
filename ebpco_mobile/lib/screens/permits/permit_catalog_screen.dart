@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/permit_catalog.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
-import '../../widgets/soft_card.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import 'application_wizard_screen.dart';
 
 /// Ported grouping from `permit.model.ts`'s `PERMIT_TYPE_GROUPS` — see that
@@ -14,42 +13,28 @@ class PermitCatalogScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Permit Services')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.xxl, AppSpacing.lg, AppSpacing.xxl, 40),
-          children: [
-            Text('Browse permit types and start a new application.', style: AppTypography.body),
-            const SizedBox(height: AppSpacing.xl),
-            for (final group in permitTypeGroups) ...[
-              Text(group.label, style: AppTypography.overline),
-              const SizedBox(height: AppSpacing.sm),
+    return SoftPageScaffold(
+      title: 'Permit Services',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        children: [
+          Text('Apply for a Permit', style: SoftType.h1),
+          const SizedBox(height: 6),
+          Text('Browse permit types and start a new application.', style: SoftType.body.copyWith(fontSize: 15)),
+          const SizedBox(height: 22),
+          for (final group in permitTypeGroups) ...[
+            SoftSectionHeader(title: group.label),
+            SoftGroupedList(rows: [
               for (final type in group.types)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: SoftCard(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationWizardScreen(permitType: type))),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(color: AppColors.primary100, borderRadius: BorderRadius.circular(10)),
-                          child: const Icon(Icons.description_outlined, color: AppColors.primary600, size: 20),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(child: Text(type, style: AppTypography.cardTitle)),
-                        const Icon(Icons.chevron_right, color: AppColors.gray400),
-                      ],
-                    ),
-                  ),
+                SoftListRow(
+                  icon: Icons.description_outlined,
+                  title: type,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationWizardScreen(permitType: type))),
                 ),
-              const SizedBox(height: AppSpacing.md),
-            ],
+            ]),
+            const SizedBox(height: 22),
           ],
-        ),
+        ],
       ),
     );
   }

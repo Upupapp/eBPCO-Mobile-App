@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../theme/app_colors.dart';
+import '../../services/notifications_service.dart';
 import '../../theme/app_haptics.dart';
-import '../../theme/app_shadows.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/nav/soft_nav_bar.dart';
+import '../../widgets/services_sheet.dart';
+import '../../widgets/soft_chrome.dart';
 import '../applications/my_applications_screen.dart';
+import '../business/business_list_screen.dart';
+import '../documents/my_documents_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../payments/payments_list_screen.dart';
 import '../permits/permit_catalog_screen.dart';
 import '../profile/profile_screen.dart';
 import 'dashboard_screen.dart';
 
-/// Four real tabs (Home, Applications, Notifications, Profile) plus a
-/// raised, non-selectable "Apply" pill that opens the Permit Catalog —
-/// same interaction shape as the design reference's `RootShell` (bottom
-/// nav + a raised control that opens a sheet/screen rather than becoming a
-/// fifth selected branch), adapted to eBPCO's actual four sections instead
-/// of Teresa's Home/Balita/Events/Profile.
+/// Four branches (Home, Applications, Alerts, Profile) on the design
+/// reference's floating pill, plus the raised center Services control that
+/// opens a sheet and never becomes a selected branch — the same interaction
+/// shape as the reference's `RootShell`, carrying eBPCO's own sections.
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
+
+  /// Lets any descendant switch branch (e.g. the dashboard's "View all").
+  static void jumpTo(BuildContext context, int index) => context.findAncestorStateOfType<_RootShellState>()?._onTap(index);
 
   @override
   State<RootShell> createState() => _RootShellState();
@@ -33,77 +40,67 @@ class _RootShellState extends State<RootShell> {
     ProfileScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<NotificationsService>().refresh());
+  }
+
   void _onTap(int index) {
+    if (index == _index) return;
     AppHaptics.selection();
     setState(() => _index = index);
   }
 
-  void _openApply() {
+  void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+
+  void _openServices() {
     AppHaptics.medium();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PermitCatalogScreen()));
+    showServicesSheet(context, [
+      ServiceEntry(
+        icon: Icons.add_circle_outline_rounded,
+        title: 'Apply for a Permit',
+        subtitle: '17 permit types · start or resume',
+        onTap: () => _push(const PermitCatalogScreen()),
+      ),
+      ServiceEntry(
+        icon: Icons.storefront_outlined,
+        title: 'My Businesses',
+        subtitle: 'Register and manage your businesses',
+        onTap: () => _push(const BusinessListScreen()),
+      ),
+      ServiceEntry(
+        icon: Icons.payments_outlined,
+        title: 'Payments',
+        subtitle: 'Orders of Payment and submissions',
+        onTap: () => _push(const PaymentsListScreen()),
+      ),
+      ServiceEntry(
+        icon: Icons.folder_outlined,
+        title: 'My Documents',
+        subtitle: 'Everything you have uploaded',
+        onTap: () => _push(const MyDocumentsScreen()),
+      ),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
+    final unread = context.watch<NotificationsService>().unresolvedCount;
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openApply,
-        backgroundColor: AppColors.primary500,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        icon: const Icon(Icons.add),
-        label: Text('Apply', style: AppTypography.button),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        color: AppColors.surface,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        elevation: 0,
-        child: Container(
-          decoration: const BoxDecoration(boxShadow: AppShadows.cardHover),
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(icon: Icons.home_rounded, label: 'Home', selected: _index == 0, onTap: () => _onTap(0)),
-              _NavItem(icon: Icons.description_rounded, label: 'Applications', selected: _index == 1, onTap: () => _onTap(1)),
-              const SizedBox(width: 48),
-              _NavItem(icon: Icons.notifications_rounded, label: 'Alerts', selected: _index == 2, onTap: () => _onTap(2)),
-              _NavItem(icon: Icons.person_rounded, label: 'Profile', selected: _index == 3, onTap: () => _onTap(3)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? AppColors.primary600 : AppColors.gray400;
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 2),
-            Text(label, style: AppTypography.overline.copyWith(color: color, fontSize: 10)),
-          ],
-        ),
+      backgroundColor: SoftColors.page,
+      extendBody: true,
+      body: SoftPageWipe(index: _index, children: _screens),
+      bottomNavigationBar: SoftNavBar(
+        activeIndex: _index,
+        onTabSelected: _onTap,
+        onCenterPressed: _openServices,
+        items: [
+          const NavItemData(outlineIcon: Icons.home_outlined, filledIcon: Icons.home_rounded, label: 'Home'),
+          const NavItemData(outlineIcon: Icons.description_outlined, filledIcon: Icons.description_rounded, label: 'Applications'),
+          NavItemData(outlineIcon: Icons.notifications_none_rounded, filledIcon: Icons.notifications_rounded, label: 'Alerts', badge: unread),
+          const NavItemData(outlineIcon: Icons.person_outline_rounded, filledIcon: Icons.person_rounded, label: 'Profile'),
+        ],
       ),
     );
   }

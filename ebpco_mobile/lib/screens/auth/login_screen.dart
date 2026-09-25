@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/session_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/soft_chrome.dart';
 import '../home/root_shell.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
+/// Sign in — the design reference's sign-in layout (wash, large seal,
+/// municipality line, left-aligned eyebrow and headline, pill fields, a
+/// glowing pill button, a link row) against the real `/auth/token`.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -31,6 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     if (_emailController.text.trim().isEmpty || _passwordController.text.isEmpty) {
       setState(() => _error = 'Enter your email and password.');
       return;
@@ -52,81 +56,79 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SoftWash(
+      child: Scaffold(
+        backgroundColor: SoftColors.clear,
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
             children: [
-              const SizedBox(height: AppSpacing.xxxl),
               Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.borderMedium)),
-                      padding: const EdgeInsets.all(10),
-                      child: Image.asset('assets/images/ebpco_seal.png', fit: BoxFit.contain),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text('Welcome back', style: AppTypography.h1),
-                    const SizedBox(height: 4),
-                    Text('Sign in to eBPCO to file and track your permits.', style: AppTypography.body, textAlign: TextAlign.center),
-                  ],
+                child: Container(
+                  width: 124,
+                  height: 124,
+                  decoration: const BoxDecoration(color: SoftColors.white, shape: BoxShape.circle, boxShadow: SoftShadows.seal),
+                  padding: const EdgeInsets.all(6),
+                  child: Image.asset('assets/images/ebpco_seal.png', fit: BoxFit.contain),
                 ),
               ),
-              const SizedBox(height: AppSpacing.xxxl),
-              Text('Email', style: AppTypography.fieldLabel),
-              const SizedBox(height: 6),
+              const SizedBox(height: 14),
+              Text('Municipality of Castilla, Sorsogon', textAlign: TextAlign.center, style: SoftType.eyebrow.copyWith(fontSize: 14)),
+              const SizedBox(height: 2),
+              Text('eBPCO', textAlign: TextAlign.center, style: SoftType.pageTitle.copyWith(fontSize: 22, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 28),
+              Text('Sign in', style: SoftType.eyebrow.copyWith(fontSize: 15)),
+              const SizedBox(height: 4),
+              Text('Welcome back', style: SoftType.hero.copyWith(fontSize: 34)),
+              const SizedBox(height: 8),
+              Text('Sign in to file and track your permits.', style: SoftType.body.copyWith(fontSize: 16)),
+              const SizedBox(height: 22),
+              Text('Email', style: SoftType.fieldLabel.copyWith(fontSize: 15)),
+              const SizedBox(height: 8),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
+                textInputAction: TextInputAction.next,
+                style: SoftType.field,
                 decoration: const InputDecoration(hintText: 'you@example.com'),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Password', style: AppTypography.fieldLabel),
-              const SizedBox(height: 6),
+              const SizedBox(height: 16),
+              Text('Password', style: SoftType.fieldLabel.copyWith(fontSize: 15)),
+              const SizedBox(height: 8),
               TextField(
                 controller: _passwordController,
                 obscureText: _obscure,
+                style: SoftType.field,
+                onSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
                   hintText: 'Your password',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppColors.gray400),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: SoftColors.muted),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
                   ),
                 ),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
-                  child: const Text('Forgot password?'),
-                ),
-              ),
               if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: 12),
                 Text(_error!, style: AppTypography.error),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              ElevatedButton(
-                onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                    : const Text('Log In'),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
+              const SizedBox(height: 22),
+              SoftPillButton(label: 'Sign in', busy: _submitting, onPressed: _submit),
+              const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text("Don't have an account? ", style: AppTypography.body),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                    child: Text('Register', style: AppTypography.bodyMedium.copyWith(color: AppColors.primary600, fontWeight: FontWeight.w700)),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                    child: Text('Create account', style: SoftType.sectionLink.copyWith(fontSize: 16)),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
+                    child: Text('Forgot password?', style: SoftType.sectionLink.copyWith(fontSize: 16)),
                   ),
                 ],
               ),

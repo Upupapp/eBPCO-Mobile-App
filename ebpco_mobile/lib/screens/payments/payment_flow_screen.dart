@@ -10,10 +10,11 @@ import '../../core/api/problem.dart';
 import '../../domain/lgu_contact.dart';
 import '../../domain/models.dart';
 import '../../services/applications_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import 'payments_list_screen.dart';
 
@@ -121,80 +122,73 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
     final app = _application;
     final order = app?.orderOfPayment;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Pay Assessment')),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : app == null || order == null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.xxl),
-                      child: Text(
-                        _error ?? 'No assessment has been issued yet for this application.',
-                        style: AppTypography.body,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(AppSpacing.xxl),
-                    children: [
-                      Text('${app.referenceNumber} · ${app.permitType}', style: AppTypography.caption),
-                      const SizedBox(height: AppSpacing.md),
-                      SoftCard(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return SoftPageScaffold(
+      title: 'Pay Assessment',
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : app == null || order == null
+              ? ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                  children: [SoftEmptyCard(_error ?? 'No assessment has been issued yet for this application.')],
+                )
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(SoftRadius.lg), boxShadow: SoftShadows.feature),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(gradient: SoftColors.primaryGradient, borderRadius: BorderRadius.circular(SoftRadius.lg)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Total Assessment', style: AppTypography.body),
-                            Text(pesos(order.totalCentavos), style: AppTypography.h2),
+                            Text('${app.referenceNumber} · ${app.permitType}', style: SoftType.tileSub.copyWith(color: const Color(0xE6FFFFFF))),
+                            const SizedBox(height: 14),
+                            Text('Total Assessment', style: SoftType.cellLabel.copyWith(color: const Color(0xCCFFFFFF), fontSize: 13)),
+                            const SizedBox(height: 2),
+                            Text(pesos(order.totalCentavos), style: SoftType.hero.copyWith(color: SoftColors.white, fontSize: 34)),
                           ],
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xl),
-                      Text('Payment Method', style: AppTypography.fieldLabel),
-                      const SizedBox(height: AppSpacing.sm),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => setState(() => _method = 'Bank Transfer'),
-                              style: _method == 'Bank Transfer'
-                                  ? OutlinedButton.styleFrom(backgroundColor: AppColors.primary500, foregroundColor: Colors.white)
-                                  : null,
-                              child: const Text('Bank Transfer'),
-                            ),
+                    ),
+                    const SizedBox(height: 24),
+                    const SoftSectionHeader(title: 'Payment Method'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MethodCard(
+                            icon: Icons.account_balance_outlined,
+                            label: 'Bank Transfer',
+                            selected: _method == 'Bank Transfer',
+                            onTap: () => setState(() => _method = 'Bank Transfer'),
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => setState(() => _method = 'Onsite'),
-                              style: _method == 'Onsite'
-                                  ? OutlinedButton.styleFrom(backgroundColor: AppColors.primary500, foregroundColor: Colors.white)
-                                  : null,
-                              child: const Text('Onsite Payment'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      if (_method == 'Bank Transfer') _bankTransferSection() else _onsiteSection(),
-                      if (_error != null) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        Text(_error!, style: AppTypography.error),
-                      ],
-                      const SizedBox(height: AppSpacing.xl),
-                      if (_method == 'Onsite' || defaultBankInfo != null)
-                        ElevatedButton(
-                          onPressed: _submitting ? null : _submit,
-                          child: _submitting
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                              : Text(_method == 'Bank Transfer' ? 'Submit Payment' : 'Mark as Paid'),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _MethodCard(
+                            icon: Icons.storefront_outlined,
+                            label: 'Onsite Payment',
+                            selected: _method == 'Onsite',
+                            onTap: () => setState(() => _method = 'Onsite'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (_method == 'Bank Transfer') _bankTransferSection() else _onsiteSection(),
+                    if (_error != null) ...[
+                      const SizedBox(height: 14),
+                      Text(_error!, style: AppTypography.error),
                     ],
-                  ),
-      ),
+                    const SizedBox(height: 24),
+                    if (_method == 'Onsite' || defaultBankInfo != null)
+                      SoftPillButton(
+                        label: _method == 'Bank Transfer' ? 'Submit Payment' : 'Mark as Paid',
+                        busy: _submitting,
+                        onPressed: _submit,
+                      ),
+                  ],
+                ),
     );
   }
 
@@ -205,22 +199,22 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
       // "not yet available" is the only safe empty state until the
       // Municipality actually supplies a deposit account.
       return SoftCard(
-        color: AppColors.warning100,
+        color: SoftColors.pendingCream,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Bank transfer is not available yet', style: AppTypography.cardTitle),
+            Text('Bank transfer is not available yet', style: SoftType.tileTitle.copyWith(fontSize: 16, fontWeight: FontWeight.w600, color: SoftColors.pendingInk)),
             const SizedBox(height: 6),
             Text(
               'The Municipality of Castilla has not published a deposit account for permit fees. '
               'Do not transfer permit fees to any account you have not confirmed with the Municipality directly.',
-              style: AppTypography.caption,
+              style: SoftType.body.copyWith(color: SoftColors.ink),
             ),
             const SizedBox(height: 8),
             Text(
               'Use Onsite Payment instead, or confirm current arrangements with the ${municipalEngineer.name} — '
               '${municipalEngineer.mobile} or ${municipalEngineer.email}.',
-              style: AppTypography.caption,
+              style: SoftType.body.copyWith(color: SoftColors.ink),
             ),
           ],
         ),
@@ -231,38 +225,102 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SoftCard(
-          color: AppColors.surfaceSecondary,
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Bank: ${bank.bankName}', style: AppTypography.body),
-              Text('Account Name: ${bank.accountName}', style: AppTypography.body),
-              Text('Account Number: ${bank.accountNumber}', style: AppTypography.body),
-              Text('Branch: ${bank.branch}', style: AppTypography.body),
+              Text('Bank: ${bank.bankName}', style: SoftType.body.copyWith(color: SoftColors.ink)),
+              Text('Account Name: ${bank.accountName}', style: SoftType.body.copyWith(color: SoftColors.ink)),
+              Text('Account Number: ${bank.accountNumber}', style: SoftType.body.copyWith(color: SoftColors.ink)),
+              Text('Branch: ${bank.branch}', style: SoftType.body.copyWith(color: SoftColors.ink)),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
-        Text('Proof of Payment', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
+        const SizedBox(height: 16),
+        const SoftFieldLabel('Proof of Payment'),
         _proofFileName != null
             ? Row(
                 children: [
-                  const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                  const Icon(Icons.check_circle_rounded, color: SoftColors.verifiedInk, size: 18),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(_proofFileName!, style: AppTypography.caption)),
+                  Expanded(child: Text(_proofFileName!, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.cellValue)),
                   TextButton(onPressed: _pickProof, child: const Text('Replace')),
                 ],
               )
-            : OutlinedButton.icon(onPressed: _pickProof, icon: const Icon(Icons.upload_file, size: 18), label: const Text('Attach File')),
+            : SoftPillButton(label: 'Attach File', kind: SoftPillKind.outline, icon: Icons.attach_file_rounded, onPressed: _pickProof),
       ],
     );
   }
 
   Widget _onsiteSection() {
     return SoftCard(
-      color: AppColors.surfaceSecondary,
-      child: Text('Pay directly at the ${municipalEngineer.name}, $municipalHallAddress. Bring a copy of your Order of Payment.', style: AppTypography.body),
+      color: SoftColors.primaryWash,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SoftIconTile(icon: Icons.place_outlined, background: SoftColors.white, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Pay directly at the ${municipalEngineer.name}, $municipalHallAddress. Bring a copy of your Order of Payment.',
+              style: SoftType.body.copyWith(color: SoftColors.ink),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MethodCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _MethodCard({required this.icon, required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(SoftRadius.lg),
+        boxShadow: selected ? SoftShadows.card : SoftShadows.cardSm,
+      ),
+      child: Material(
+        color: selected ? SoftColors.primaryWash : SoftColors.white,
+        borderRadius: BorderRadius.circular(SoftRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(SoftRadius.lg),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(SoftRadius.lg),
+              border: Border.all(color: selected ? SoftColors.primary : SoftColors.lineSoft, width: selected ? 1.5 : 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SoftIconTile(icon: icon, size: 40, background: selected ? SoftColors.white : SoftColors.primarySoft),
+                    const Spacer(),
+                    Icon(
+                      selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                      color: selected ? SoftColors.primary : SoftColors.chevron,
+                      size: 20,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(label, style: SoftType.tileTitle.copyWith(fontWeight: selected ? FontWeight.w600 : FontWeight.w500)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

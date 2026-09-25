@@ -43,10 +43,9 @@ dependencies:
   # reasoning as the web portals' own `idempotencyKey()` helper.
   uuid: ^4.5.1
 
-  # Gothic A1 — the same Google Font both web portals use
-  # (styles.scss/_tokens.scss), for visual parity with them rather than
-  # with the design reference's Inter.
-  google_fonts: ^6.2.1
+  # First-run onboarding flag only — a non-secret UI preference, so it does
+  # not belong in the keystore alongside the auth tokens.
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -72,3 +71,18 @@ flutter:
 
   assets:
     - assets/images/
+
+  # Inter, bundled — the design reference's own face (owner decision: take
+  # Teresa-Rizal-Mobile's design and look, change only the color). Bundled
+  # rather than fetched at runtime so first launch never waits on a font
+  # download. SIL Open Font License, see assets/fonts/OFL-Inter.txt.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    # Static SemiBold instance: the variable file's weight axis does not move
+    # the large headlines on this engine (same finding as the reference app).
+    - family: InterSemi
+      fonts:
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600

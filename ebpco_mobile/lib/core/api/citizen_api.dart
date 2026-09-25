@@ -182,10 +182,10 @@ class CitizenApi {
         body: {
           'permitType': permitType,
           'applicationAction': applicationAction,
-          if (renewsPermitNumber != null) 'renewsPermitNumber': renewsPermitNumber,
-          if (priorPermitClaim != null) 'priorPermitClaim': priorPermitClaim,
-          if (businessId != null) 'businessId': businessId,
-          if (location != null) 'location': location,
+          'renewsPermitNumber': ?renewsPermitNumber,
+          'priorPermitClaim': ?priorPermitClaim,
+          'businessId': ?businessId,
+          'location': ?location,
           'documentIds': documentIds,
           'form': form,
           'saveAsDraft': saveAsDraft,
@@ -235,7 +235,7 @@ class CitizenApi {
         'method': method,
         'paidOn': paidOn,
         'amountCentavos': amountCentavos,
-        if (proofDocumentId != null) 'proofDocumentId': proofDocumentId,
+        'proofDocumentId': ?proofDocumentId,
       },
     );
     return (
@@ -315,8 +315,8 @@ class CitizenApi {
         'fileName': fileName,
         'label': label,
         'contentBase64': contentBase64,
-        if (applicationId != null) 'applicationId': applicationId,
-        if (requirementCode != null) 'requirementCode': requirementCode,
+        'applicationId': ?applicationId,
+        'requirementCode': ?requirementCode,
       },
     );
     return body['documentId'] as String;

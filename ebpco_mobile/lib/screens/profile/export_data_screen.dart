@@ -3,9 +3,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 
 /// RA 10173 §18 data portability — `POST /me/export` then poll
 /// `GET /me/export/{id}` until `status: 'ready'`, same shape the web
@@ -67,47 +69,65 @@ class _ExportDataScreenState extends State<ExportDataScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Export Your Data')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Request a copy of everything the Municipality holds about you — your profile, applications, '
-                'documents, payments, and notifications. This is your right under the Data Privacy Act (RA 10173, §18).',
-                style: AppTypography.body,
-              ),
-              const SizedBox(height: AppSpacing.xxl),
-              if (_requestId == null)
-                ElevatedButton(onPressed: _busy ? null : _request, child: const Text('Request My Data'))
-              else if (_downloadUrl != null) ...[
-                Row(children: [
-                  const Icon(Icons.check_circle, color: AppColors.success),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('Your export is ready.')),
-                ]),
-                const SizedBox(height: AppSpacing.lg),
-                ElevatedButton(
-                  onPressed: () => launchUrl(Uri.parse(_downloadUrl!), mode: LaunchMode.externalApplication),
-                  child: const Text('Download'),
-                ),
-              ] else ...[
-                Text('Status: ${_status ?? 'queued'}', style: AppTypography.bodyMedium),
-                const SizedBox(height: AppSpacing.sm),
-                Text('This can take a while to produce. Check back and tap below again later.', style: AppTypography.caption),
-                const SizedBox(height: AppSpacing.lg),
-                OutlinedButton(onPressed: _busy ? null : _checkStatus, child: const Text('Check Status')),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(_error!, style: AppTypography.error),
-              ],
-            ],
+    return SoftPageScaffold(
+      title: 'Export Your Data',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        children: [
+          const SoftIconTile(icon: Icons.download_outlined, size: 56),
+          const SizedBox(height: 16),
+          Text('Your data, in one file', style: SoftType.h1.copyWith(fontSize: 24)),
+          const SizedBox(height: 8),
+          Text(
+            'Request a copy of everything the Municipality holds about you — your profile, applications, '
+            'documents, payments, and notifications. This is your right under the Data Privacy Act (RA 10173, §18).',
+            style: SoftType.body.copyWith(fontSize: 15),
           ),
-        ),
+          const SizedBox(height: 24),
+          if (_requestId == null)
+            SoftPillButton(label: 'Request My Data', busy: _busy, onPressed: _request)
+          else if (_downloadUrl != null) ...[
+            SoftCard(
+              color: SoftColors.verifiedSoft,
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                const Icon(Icons.check_circle_rounded, color: SoftColors.verifiedInk),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Your export is ready.', style: SoftType.tileTitle.copyWith(color: SoftColors.verifiedInk))),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            SoftPillButton(
+              label: 'Download',
+              icon: Icons.download_rounded,
+              onPressed: () => launchUrl(Uri.parse(_downloadUrl!), mode: LaunchMode.externalApplication),
+            ),
+          ] else ...[
+            SoftCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text('Status', style: SoftType.cellLabel.copyWith(fontSize: 13)),
+                      const Spacer(),
+                      SoftStatusPill(label: _status ?? 'queued', tone: SoftStatusTone.pending),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text('This can take a while to produce. Check back and tap below again later.', style: SoftType.body),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SoftPillButton(label: 'Check Status', kind: SoftPillKind.outline, busy: _busy, onPressed: _checkStatus),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 14),
+            Text(_error!, style: AppTypography.error),
+          ],
+        ],
       ),
     );
   }

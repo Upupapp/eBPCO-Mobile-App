@@ -5,8 +5,10 @@ import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/castilla.dart';
 import '../../services/session_service.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 
 /// `PATCH /me` — `null` clears a field, an omitted key leaves it alone,
 /// same rule the web portal's `buildRectification` enforces. Only the
@@ -83,13 +85,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _field(String label, TextEditingController controller, {TextInputType? keyboardType}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: AppTypography.fieldLabel),
-          const SizedBox(height: 6),
-          TextField(controller: controller, keyboardType: keyboardType),
+          SoftFieldLabel(label),
+          TextField(controller: controller, keyboardType: keyboardType, style: SoftType.field),
         ],
       ),
     );
@@ -98,59 +99,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final p = context.watch<SessionService>().profile;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _field('First Name', _firstName),
-              _field('Middle Name', _middleName),
-              _field('Last Name', _lastName),
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Email (cannot be changed)', style: AppTypography.fieldLabel),
-                    const SizedBox(height: 6),
-                    TextField(controller: TextEditingController(text: p?.email ?? ''), enabled: false),
-                  ],
-                ),
-              ),
-              _field('Mobile Number', _mobile, keyboardType: TextInputType.phone),
-              _field('Street Address', _street),
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Barangay', style: AppTypography.fieldLabel),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      initialValue: castillaBarangays.contains(_barangay) ? _barangay : null,
-                      isExpanded: true,
-                      items: castillaBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
-                      onChanged: (v) => setState(() => _barangay = v),
-                    ),
-                  ],
-                ),
-              ),
-              _field('ZIP Code', _postal, keyboardType: TextInputType.number),
-              if (_error != null) ...[
-                Text(_error!, style: AppTypography.error),
-                const SizedBox(height: AppSpacing.md),
-              ],
-              ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                    : const Text('Save Changes'),
-              ),
+    return SoftPageScaffold(
+      title: 'Edit Profile',
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _field('First Name', _firstName),
+            _field('Middle Name', _middleName),
+            _field('Last Name', _lastName),
+            const SoftFieldLabel('Email (cannot be changed)'),
+            TextField(controller: TextEditingController(text: p?.email ?? ''), enabled: false, style: SoftType.field.copyWith(color: SoftColors.muted)),
+            const SizedBox(height: 16),
+            _field('Mobile Number', _mobile, keyboardType: TextInputType.phone),
+            _field('Street Address', _street),
+            const SoftFieldLabel('Barangay'),
+            DropdownButtonFormField<String>(
+              initialValue: castillaBarangays.contains(_barangay) ? _barangay : null,
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(SoftRadius.md),
+              items: castillaBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+              onChanged: (v) => setState(() => _barangay = v),
+            ),
+            const SizedBox(height: 16),
+            _field('ZIP Code', _postal, keyboardType: TextInputType.number),
+            if (_error != null) ...[
+              Text(_error!, style: AppTypography.error),
+              const SizedBox(height: 14),
             ],
-          ),
+            const SizedBox(height: 10),
+            SoftPillButton(label: 'Save Changes', busy: _saving, onPressed: _save),
+          ],
         ),
       ),
     );

@@ -7,8 +7,10 @@ import '../../domain/business_categories.dart';
 import '../../domain/castilla.dart';
 import '../../domain/models.dart';
 import '../../services/businesses_service.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 
 /// `PATCH /businesses/:id` — the owner-editable subset only:
 /// registrationNumber/dateRegistered/status are not offered here at all,
@@ -78,51 +80,43 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Edit Business')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Business Name', style: AppTypography.fieldLabel),
-              const SizedBox(height: 6),
-              TextField(controller: _name),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Category', style: AppTypography.fieldLabel),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                initialValue: businessCategories.contains(_category) ? _category : businessCategories.first,
-                items: businessCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (v) => setState(() => _category = v ?? _category),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Street Address', style: AppTypography.fieldLabel),
-              const SizedBox(height: 6),
-              TextField(controller: _street),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Barangay', style: AppTypography.fieldLabel),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                initialValue: castillaBarangays.contains(_barangay) ? _barangay : null,
-                isExpanded: true,
-                items: castillaBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
-                onChanged: (v) => setState(() => _barangay = v),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(_error!, style: AppTypography.error),
-              ],
-              const SizedBox(height: AppSpacing.xl),
-              ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                    : const Text('Save Changes'),
-              ),
+    return SoftPageScaffold(
+      title: 'Edit Business',
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SoftFieldLabel('Business Name'),
+            TextField(controller: _name, style: SoftType.field),
+            const SizedBox(height: 16),
+            const SoftFieldLabel('Category'),
+            DropdownButtonFormField<String>(
+              initialValue: businessCategories.contains(_category) ? _category : businessCategories.first,
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(SoftRadius.md),
+              items: businessCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              onChanged: (v) => setState(() => _category = v ?? _category),
+            ),
+            const SizedBox(height: 16),
+            const SoftFieldLabel('Street Address'),
+            TextField(controller: _street, style: SoftType.field),
+            const SizedBox(height: 16),
+            const SoftFieldLabel('Barangay'),
+            DropdownButtonFormField<String>(
+              initialValue: castillaBarangays.contains(_barangay) ? _barangay : null,
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(SoftRadius.md),
+              items: castillaBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+              onChanged: (v) => setState(() => _barangay = v),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              Text(_error!, style: AppTypography.error),
             ],
-          ),
+            const SizedBox(height: 26),
+            SoftPillButton(label: 'Save Changes', busy: _saving, onPressed: _save),
+          ],
         ),
       ),
     );

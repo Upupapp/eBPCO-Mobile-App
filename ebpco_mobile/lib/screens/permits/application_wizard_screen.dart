@@ -10,10 +10,11 @@ import '../../core/api/problem.dart';
 import '../../domain/models.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
 
@@ -250,45 +251,56 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(_permitType.isEmpty ? 'New Application' : _permitType),
-        actions: [
-          if (_draftId != null && _step < 4)
-            TextButton(
-              onPressed: _busy ? null : _saveAndExit,
-              child: const Text('Save & Exit'),
-            ),
-        ],
-      ),
-      body: SafeArea(
-        child: _busy && _requirements.isEmpty && _step == 1 && _isResuming
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  _StepIndicator(step: _step),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(AppSpacing.xxl),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_step == 1) _step1(),
-                          if (_step == 2) _step2(),
-                          if (_step == 3) _step3(),
-                          if (_step == 4) _step4(),
-                          if (_error != null) ...[
-                            const SizedBox(height: AppSpacing.md),
-                            Text(_error!, style: AppTypography.error),
-                          ],
+    return SoftPageScaffold(
+      title: _permitType.isEmpty ? 'New Application' : _permitType,
+      actions: [
+        if (_draftId != null && _step < 4)
+          TextButton(
+            onPressed: _busy ? null : _saveAndExit,
+            child: Text('Save & Exit', style: SoftType.sectionLink.copyWith(fontSize: 14)),
+          ),
+      ],
+      body: _busy && _requirements.isEmpty && _step == 1 && _isResuming
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _StepIndicator(step: _step),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_step == 1) _step1(),
+                        if (_step == 2) _step2(),
+                        if (_step == 3) _step3(),
+                        if (_step == 4) _step4(),
+                        if (_error != null) ...[
+                          const SizedBox(height: 14),
+                          Text(_error!, style: AppTypography.error),
                         ],
-                      ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-      ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text, style: SoftType.fieldLabel.copyWith(fontSize: 14)),
+      );
+
+  Widget _navRow({required VoidCallback onBack, required String nextLabel, required VoidCallback onNext}) {
+    return Row(
+      children: [
+        Expanded(child: SoftPillButton(label: 'Back', kind: SoftPillKind.outline, onPressed: _busy ? null : onBack)),
+        const SizedBox(width: 12),
+        Expanded(flex: 2, child: SoftPillButton(label: nextLabel, busy: _busy, onPressed: onNext)),
+      ],
     );
   }
 
@@ -299,60 +311,83 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Permit Type', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        SoftCard(padding: const EdgeInsets.all(AppSpacing.md), child: Text(_permitType, style: AppTypography.bodyMedium)),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Business', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        if (active.isEmpty)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        Text('Business & type', style: SoftType.h1.copyWith(fontSize: 24)),
+        const SizedBox(height: 18),
+        _label('Permit Type'),
+        SoftCard(
+          padding: const EdgeInsets.all(14),
+          child: Row(
             children: [
-              Text(
-                businesses.loading ? 'Loading your businesses…' : 'No active businesses.',
-                style: AppTypography.hint,
-              ),
-              if (!businesses.loading) ...[
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () => Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()))
-                      .then((_) => context.read<BusinessesService>().refresh()),
-                  child: const Text('Register one first'),
-                ),
-              ],
+              const SoftIconTile(icon: Icons.description_outlined, size: 40),
+              const SizedBox(width: 12),
+              Expanded(child: Text(_permitType, style: SoftType.tileTitle.copyWith(fontSize: 16))),
             ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        _label('Business'),
+        if (active.isEmpty)
+          SoftCard(
+            color: SoftColors.primaryWash,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  businesses.loading ? 'Loading your businesses…' : 'No active businesses.',
+                  style: SoftType.body.copyWith(color: SoftColors.ink),
+                ),
+                if (!businesses.loading) ...[
+                  const SizedBox(height: 10),
+                  SoftPillButton(
+                    label: 'Register one first',
+                    kind: SoftPillKind.outline,
+                    icon: Icons.add_rounded,
+                    onPressed: () => Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()))
+                        .then((_) {
+                      if (mounted) context.read<BusinessesService>().refresh();
+                    }),
+                  ),
+                ],
+              ],
+            ),
           )
         else
           DropdownButtonFormField<String>(
             initialValue: active.any((b) => b.id == _businessId) ? _businessId : null,
             hint: const Text('Select a business'),
             isExpanded: true,
+            borderRadius: BorderRadius.circular(SoftRadius.md),
             items: active.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
             onChanged: (v) => setState(() => _businessId = v),
           ),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Application Type', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          initialValue: _applicationAction,
-          items: const ['New', 'Renewal', 'Amendment'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-          onChanged: (v) => setState(() => _applicationAction = v ?? _applicationAction),
+        const SizedBox(height: 18),
+        _label('Application Type'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final v in const ['New', 'Renewal', 'Amendment'])
+              SizedBox(
+                height: 40,
+                child: SoftFilterChip(label: v, selected: _applicationAction == v, onTap: () => setState(() => _applicationAction = v)),
+              ),
+          ],
         ),
         if (_needsPriorPermitClaim) ...[
-          const SizedBox(height: AppSpacing.lg),
-          Text('Existing Permit Number', style: AppTypography.fieldLabel),
+          const SizedBox(height: 18),
+          _label('Existing Permit Number'),
+          TextField(
+            controller: _priorPermitClaim,
+            style: SoftType.field,
+            decoration: const InputDecoration(hintText: 'e.g. BP-2020-000042, as printed on the permit'),
+          ),
           const SizedBox(height: 6),
-          TextField(controller: _priorPermitClaim, decoration: const InputDecoration(hintText: 'e.g. BP-2020-000042, as printed on the permit')),
-          const SizedBox(height: 6),
-          Text('The office confirms this from the permit itself — self-reported here.', style: AppTypography.hint),
+          Text('The office confirms this from the permit itself — self-reported here.', style: SoftType.cellLabel),
         ],
-        const SizedBox(height: AppSpacing.xl),
-        ElevatedButton(
-          onPressed: _busy ? null : _toStep2,
-          child: _busy ? const _Spinner() : const Text('Continue'),
-        ),
+        const SizedBox(height: 26),
+        SoftPillButton(label: 'Continue', busy: _busy, onPressed: _toStep2),
       ],
     );
   }
@@ -361,29 +396,37 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Project / Business Address', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        TextField(controller: _projectAddress, decoration: const InputDecoration(hintText: 'Street, Barangay, City')),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Scope of Work / Purpose', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        TextField(controller: _scopeOfWork, maxLines: 3, decoration: const InputDecoration(hintText: 'Briefly describe the work or purpose')),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Professional in Charge (optional)', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        TextField(controller: _professionalName, decoration: const InputDecoration(hintText: 'Engineer / Architect name')),
-        const SizedBox(height: AppSpacing.lg),
-        Text('PRC License No. (optional)', style: AppTypography.fieldLabel),
-        const SizedBox(height: 6),
-        TextField(controller: _prcNumber),
-        const SizedBox(height: AppSpacing.xl),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton(onPressed: () => setState(() => _step = 1), child: const Text('Back'))),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(flex: 2, child: ElevatedButton(onPressed: _busy ? null : _toStep3, child: _busy ? const _Spinner() : const Text('Continue'))),
-          ],
+        Text('Project details', style: SoftType.h1.copyWith(fontSize: 24)),
+        const SizedBox(height: 18),
+        _label('Project / Business Address'),
+        TextField(controller: _projectAddress, style: SoftType.field, decoration: const InputDecoration(hintText: 'Street, Barangay, City')),
+        const SizedBox(height: 16),
+        _label('Scope of Work / Purpose'),
+        TextField(
+          controller: _scopeOfWork,
+          maxLines: 3,
+          style: SoftType.field,
+          decoration: InputDecoration(
+            hintText: 'Briefly describe the work or purpose',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(SoftRadius.md)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(SoftRadius.md),
+              borderSide: const BorderSide(color: SoftColors.line),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(SoftRadius.md),
+              borderSide: const BorderSide(color: SoftColors.primary, width: 1.5),
+            ),
+          ),
         ),
+        const SizedBox(height: 16),
+        _label('Professional in Charge (optional)'),
+        TextField(controller: _professionalName, style: SoftType.field, decoration: const InputDecoration(hintText: 'Engineer / Architect name')),
+        const SizedBox(height: 16),
+        _label('PRC License No. (optional)'),
+        TextField(controller: _prcNumber, style: SoftType.field),
+        const SizedBox(height: 26),
+        _navRow(onBack: () => setState(() => _step = 1), nextLabel: 'Continue', onNext: _toStep3),
       ],
     );
   }
@@ -392,120 +435,134 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: AppTypography.caption),
-        const SizedBox(height: AppSpacing.md),
+        Text('Documents', style: SoftType.h1.copyWith(fontSize: 24)),
+        const SizedBox(height: 6),
+        Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
+        const SizedBox(height: 16),
         ..._requirements.map((doc) {
           final attached = _attachedDocIds[doc.code];
           final uploading = _uploadingCode == doc.code;
           return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.only(bottom: 12),
             child: SoftCard(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: doc.required ? AppColors.danger100 : AppColors.gray100,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          doc.required ? 'Required' : 'Optional',
-                          style: AppTypography.caption.copyWith(color: doc.required ? AppColors.dangerText : AppColors.gray600, fontWeight: FontWeight.w700),
+                      SoftIconTile(
+                        icon: attached != null ? Icons.check_rounded : Icons.upload_file_rounded,
+                        background: attached != null ? SoftColors.verifiedSoft : SoftColors.primarySoft,
+                        foreground: attached != null ? SoftColors.verifiedInk : SoftColors.primary,
+                        size: 40,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(doc.label, style: SoftType.tileTitle),
+                            const SizedBox(height: 6),
+                            SoftStatusPill(
+                              label: doc.required ? 'Required' : 'Optional',
+                              tone: doc.required ? SoftStatusTone.danger : SoftStatusTone.neutral,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(doc.label, style: AppTypography.bodyMedium)),
                     ],
                   ),
                   if (doc.description.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(doc.description, style: AppTypography.caption),
+                    const SizedBox(height: 10),
+                    Text(doc.description, style: SoftType.body),
                   ],
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: 12),
                   if (uploading)
-                    const _Spinner()
+                    const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)))
                   else if (attached != null)
                     Row(
                       children: [
-                        const Icon(Icons.check_circle, color: AppColors.success, size: 18),
-                        const SizedBox(width: 6),
-                        Expanded(child: Text(_attachedFileNames[doc.code] ?? 'Attached', style: AppTypography.caption)),
-                        TextButton(onPressed: () => _pickAndUpload(doc), child: const Text('Replace')),
+                        Expanded(
+                          child: Text(
+                            _attachedFileNames[doc.code] ?? 'Attached',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SoftType.cellValue.copyWith(color: SoftColors.verifiedInk),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _pickAndUpload(doc),
+                          child: Text('Replace', style: SoftType.sectionLink.copyWith(fontSize: 14)),
+                        ),
                       ],
                     )
                   else
-                    OutlinedButton.icon(
+                    SoftPillButton(
+                      label: 'Attach File',
+                      kind: SoftPillKind.outline,
+                      icon: Icons.attach_file_rounded,
                       onPressed: () => _pickAndUpload(doc),
-                      icon: const Icon(Icons.upload_file, size: 18),
-                      label: const Text('Attach File'),
                     ),
                 ],
               ),
             ),
           );
         }),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton(onPressed: () => setState(() => _step = 2), child: const Text('Back'))),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(flex: 2, child: ElevatedButton(onPressed: _busy ? null : _toStep4, child: _busy ? const _Spinner() : const Text('Continue'))),
-          ],
-        ),
+        const SizedBox(height: 14),
+        _navRow(onBack: () => setState(() => _step = 2), nextLabel: 'Continue', onNext: _toStep4),
       ],
     );
   }
 
   Widget _step4() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SoftCard(
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_permitType, style: AppTypography.h3),
-              const SizedBox(height: 4),
-              Text(_applicationAction, style: AppTypography.body),
-              const Divider(height: AppSpacing.xxl),
-              Text('Address', style: AppTypography.caption),
-              Text(_projectAddress.text, style: AppTypography.bodyMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Text('Scope of Work', style: AppTypography.caption),
-              Text(_scopeOfWork.text, style: AppTypography.bodyMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Text('Documents attached', style: AppTypography.caption),
-              Text('${_attachedDocIds.length} of ${_requirements.length}', style: AppTypography.bodyMedium),
+              Text(label, style: SoftType.cellLabel.copyWith(fontSize: 13)),
+              const SizedBox(height: 2),
+              Text(value, style: SoftType.cellValue),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Review & submit', style: SoftType.h1.copyWith(fontSize: 24)),
+        const SizedBox(height: 18),
+        SoftCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              row('Permit', _permitType),
+              const Divider(height: 1, color: SoftColors.line),
+              row('Application type', _applicationAction),
+              const Divider(height: 1, color: SoftColors.line),
+              row('Address', _projectAddress.text),
+              const Divider(height: 1, color: SoftColors.line),
+              row('Scope of Work', _scopeOfWork.text),
+              const Divider(height: 1, color: SoftColors.line),
+              row('Documents attached', '${_attachedDocIds.length} of ${_requirements.length}'),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: 16),
         Text(
           'Submitting moves this out of Draft and sends it for review. You can also save it as a draft and finish it later.',
-          style: AppTypography.caption,
+          style: SoftType.body,
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton(onPressed: () => setState(() => _step = 3), child: const Text('Back'))),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(flex: 2, child: ElevatedButton(onPressed: _busy ? null : _submit, child: _busy ? const _Spinner() : const Text('Submit Application'))),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextButton(onPressed: _busy ? null : _saveAndExit, child: const Text('Save as Draft & Exit')),
+        const SizedBox(height: 20),
+        _navRow(onBack: () => setState(() => _step = 3), nextLabel: 'Submit Application', onNext: _submit),
+        const SizedBox(height: 8),
+        SoftPillButton(label: 'Save as Draft & Exit', kind: SoftPillKind.text, onPressed: _busy ? null : _saveAndExit),
       ],
     );
   }
-}
-
-class _Spinner extends StatelessWidget {
-  const _Spinner();
-  @override
-  Widget build(BuildContext context) => const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white));
 }
 
 class _StepIndicator extends StatelessWidget {
@@ -516,34 +573,30 @@ class _StepIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     const labels = ['Type', 'Details', 'Documents', 'Review'];
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl, vertical: AppSpacing.md),
-      child: Row(
-        children: List.generate(4, (i) {
-          final n = i + 1;
-          final active = n == step;
-          final done = n < step;
-          return Expanded(
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    if (i > 0) Expanded(child: Container(height: 2, color: done || active ? AppColors.primary500 : AppColors.gray200)),
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: done || active ? AppColors.primary500 : AppColors.gray200,
-                      child: done
-                          ? const Icon(Icons.check, size: 14, color: Colors.white)
-                          : Text('$n', style: AppTypography.caption.copyWith(color: active ? Colors.white : AppColors.gray500, fontSize: 11)),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Step $step of 4 · ${labels[step - 1]}', style: SoftType.eyebrow),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var i = 0; i < 4; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                Expanded(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i < step ? SoftColors.primary : SoftColors.line,
+                      borderRadius: BorderRadius.circular(SoftRadius.pill),
                     ),
-                    if (i < 3) Expanded(child: Container(height: 2, color: done ? AppColors.primary500 : AppColors.gray200)),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(labels[i], style: AppTypography.caption.copyWith(fontSize: 10)),
               ],
-            ),
-          );
-        }),
+            ],
+          ),
+        ],
       ),
     );
   }

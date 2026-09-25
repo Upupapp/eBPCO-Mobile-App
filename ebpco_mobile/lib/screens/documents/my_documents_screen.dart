@@ -4,10 +4,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_typography.dart';
+import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 
 /// `GET /documents/me` — every document this citizen has ever uploaded,
@@ -88,41 +88,30 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('My Documents')),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _documents.isEmpty
-                  ? ListView(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xxxl),
-                          child: Text(
-                            "You haven't uploaded any documents yet.",
-                            style: AppTypography.body,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 24),
-                      itemCount: _documents.length,
-                      itemBuilder: (context, i) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _DocRow(
-                          doc: _documents[i],
-                          opening: _openingId == _documents[i].id,
-                          onOpen: () => _open(_documents[i]),
-                          onDelete: () => _delete(_documents[i]),
-                        ),
+    return SoftPageScaffold(
+      title: 'My Documents',
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _documents.isEmpty
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    children: const [SoftEmptyCard("You haven't uploaded any documents yet.")],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    itemCount: _documents.length,
+                    itemBuilder: (context, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _DocRow(
+                        doc: _documents[i],
+                        opening: _openingId == _documents[i].id,
+                        onOpen: () => _open(_documents[i]),
+                        onDelete: () => _delete(_documents[i]),
                       ),
                     ),
-        ),
+                  ),
       ),
     );
   }
@@ -138,32 +127,39 @@ class _DocRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 6, 16),
+      onTap: opening ? null : onOpen,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.insert_drive_file_outlined, color: AppColors.gray500, size: 22),
-          const SizedBox(width: AppSpacing.md),
+          const SoftIconTile(icon: Icons.insert_drive_file_outlined),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(doc.label, style: AppTypography.cardTitle),
-                Text(doc.fileName, style: AppTypography.cardSubtitle),
+                Text(doc.label, style: SoftType.tileTitle.copyWith(fontSize: 16)),
+                const SizedBox(height: 2),
+                Text(doc.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.tileSub),
                 if (doc.applicationReference != null) ...[
                   const SizedBox(height: 2),
-                  Text('On ${doc.applicationReference}', style: AppTypography.caption),
+                  Text('On ${doc.applicationReference}', style: SoftType.cellLabel),
+                ],
+                if (doc.reviewStatus != null) ...[
+                  const SizedBox(height: 10),
+                  StatusBadge(label: doc.reviewStatus!),
                 ],
               ],
             ),
           ),
-          if (doc.reviewStatus != null) ...[
-            StatusBadge(label: doc.reviewStatus!),
-            const SizedBox(width: 4),
-          ],
           if (opening)
-            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
+            )
           else
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: AppColors.gray500),
+              icon: const Icon(Icons.more_vert_rounded, color: SoftColors.muted),
               onSelected: (v) => v == 'open' ? onOpen() : onDelete(),
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'open', child: Text('View')),
