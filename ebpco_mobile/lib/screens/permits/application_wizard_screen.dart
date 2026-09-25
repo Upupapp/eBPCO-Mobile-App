@@ -9,21 +9,19 @@ import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
 import '../../services/applications_service.dart';
+import '../../services/businesses_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/soft_card.dart';
 import '../applications/application_detail_screen.dart';
+import '../business/register_business_screen.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
 /// `application-wizard.page.ts`: 4 steps (Business & Type → Details →
 /// Documents → Review & Submit), a real Draft created after Step 1 and
 /// kept current with `PATCH /applications/{id}` as the citizen moves
 /// forward, finished with `POST /applications/{id}/submit`.
-///
-/// Business selection is not in this Phase (Businesses is Phase 2 — see the
-/// approved plan), so `businessId` is always null here, a state the
-/// backend's own schema already anticipates (`businessId?: string | null`).
 class ApplicationWizardScreen extends StatefulWidget {
   /// Set when starting fresh from the catalog.
   final String? permitType;
@@ -47,6 +45,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   String? _draftId;
   late String _permitType;
   String _applicationAction = 'New';
+  String? _businessId;
   final _priorPermitClaim = TextEditingController();
 
   final _projectAddress = TextEditingController();
@@ -65,6 +64,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   void initState() {
     super.initState();
     _permitType = widget.permitType ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<BusinessesService>().refresh());
     if (_isResuming) {
       _draftId = widget.draftId;
       _loadDraft();
@@ -85,6 +85,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       final app = await _api.getApplication(_draftId!);
       _permitType = app.permitType;
       _applicationAction = app.applicationAction;
+      _businessId = app.businessId;
       _priorPermitClaim.text = app.priorPermitClaim ?? '';
       _projectAddress.text = app.location ?? '';
       _scopeOfWork.text = app.form['scopeOfWork'] as String? ?? '';
@@ -129,6 +130,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         final created = await _api.submit(
           permitType: _permitType,
           applicationAction: _applicationAction,
+          businessId: _businessId,
           priorPermitClaim: _needsPriorPermitClaim ? _priorPermitClaim.text.trim() : null,
           saveAsDraft: true,
         );
@@ -136,6 +138,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       } else {
         await _api.updateDraft(_draftId!, {
           'applicationAction': _applicationAction,
+          'businessId': _businessId,
           'priorPermitClaim': _needsPriorPermitClaim ? _priorPermitClaim.text.trim() : null,
         });
       }
@@ -290,12 +293,45 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Widget _step1() {
+    final businesses = context.watch<BusinessesService>();
+    final active = businesses.active;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Permit Type', style: AppTypography.fieldLabel),
         const SizedBox(height: 6),
         SoftCard(padding: const EdgeInsets.all(AppSpacing.md), child: Text(_permitType, style: AppTypography.bodyMedium)),
+        const SizedBox(height: AppSpacing.lg),
+        Text('Business', style: AppTypography.fieldLabel),
+        const SizedBox(height: 6),
+        if (active.isEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                businesses.loading ? 'Loading your businesses…' : 'No active businesses.',
+                style: AppTypography.hint,
+              ),
+              if (!businesses.loading) ...[
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()))
+                      .then((_) => context.read<BusinessesService>().refresh()),
+                  child: const Text('Register one first'),
+                ),
+              ],
+            ],
+          )
+        else
+          DropdownButtonFormField<String>(
+            initialValue: active.any((b) => b.id == _businessId) ? _businessId : null,
+            hint: const Text('Select a business'),
+            isExpanded: true,
+            items: active.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
+            onChanged: (v) => setState(() => _businessId = v),
+          ),
         const SizedBox(height: AppSpacing.lg),
         Text('Application Type', style: AppTypography.fieldLabel),
         const SizedBox(height: 6),

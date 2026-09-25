@@ -200,6 +200,96 @@ class CitizenApi {
         body: reason == null ? {} : {'reason': reason},
       );
 
+  // ── Payments ─────────────────────────────────────────────────────────
+
+  Future<List<PaymentEntry>> getPayments(String applicationId) async {
+    final body = await _client.get<List<dynamic>>('/applications/$applicationId/payments');
+    return body.map((e) => PaymentEntry.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// `POST /applications/{id}/payments` — submits proof against an
+  /// already-issued Order of Payment. `amountCentavos` must be the real
+  /// order's own total, never anything the citizen typed (mirrors
+  /// `payment-flow.page.ts`'s own rule: inventing the amount to pay is the
+  /// one mistake this call cannot afford).
+  Future<({String paymentId, bool replayed, bool settles})> submitPayment({
+    required String applicationId,
+    required String referenceNumber,
+    required String method,
+    required String paidOn,
+    required int amountCentavos,
+    String? proofDocumentId,
+  }) async {
+    final body = await _client.post<Map<String, dynamic>>(
+      '/applications/$applicationId/payments',
+      idempotencyKey: _client.newIdempotencyKey(),
+      body: {
+        'referenceNumber': referenceNumber,
+        'method': method,
+        'paidOn': paidOn,
+        'amountCentavos': amountCentavos,
+        if (proofDocumentId != null) 'proofDocumentId': proofDocumentId,
+      },
+    );
+    return (
+      paymentId: body['paymentId'] as String,
+      replayed: body['replayed'] as bool? ?? false,
+      settles: body['settles'] as bool? ?? false,
+    );
+  }
+
+  // ── Businesses ───────────────────────────────────────────────────────
+
+  Future<List<Business>> listBusinesses() async {
+    final body = await _client.get<Map<String, dynamic>>('/businesses');
+    return (body['data'] as List<dynamic>).map((e) => Business.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Business> registerBusiness({
+    required String name,
+    required String category,
+    required String street,
+    required String barangay,
+    required String city,
+    required String province,
+    required String registrationNumber,
+    required String dateRegistered,
+  }) async =>
+      Business.fromJson(await _client.post<Map<String, dynamic>>('/businesses', body: {
+        'name': name,
+        'category': category,
+        'street': street,
+        'barangay': barangay,
+        'city': city,
+        'province': province,
+        'registrationNumber': registrationNumber,
+        'dateRegistered': dateRegistered,
+      }));
+
+  Future<Business> updateBusiness({
+    required String businessId,
+    required String name,
+    required String category,
+    required String street,
+    required String barangay,
+    required String city,
+    required String province,
+  }) async =>
+      Business.fromJson(await _client.patch<Map<String, dynamic>>('/businesses/$businessId', body: {
+        'name': name,
+        'category': category,
+        'street': street,
+        'barangay': barangay,
+        'city': city,
+        'province': province,
+      }));
+
+  Future<Business> deactivateBusiness(String businessId) async =>
+      Business.fromJson(await _client.post<Map<String, dynamic>>('/businesses/$businessId/deactivate', body: const {}));
+
+  Future<Business> reactivateBusiness(String businessId) async =>
+      Business.fromJson(await _client.post<Map<String, dynamic>>('/businesses/$businessId/reactivate', body: const {}));
+
   // ── Documents ────────────────────────────────────────────────────────
 
   /// `POST /documents` — bytes travel as base64 in the JSON body (same

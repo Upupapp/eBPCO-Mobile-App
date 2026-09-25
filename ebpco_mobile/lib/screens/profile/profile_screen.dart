@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../services/applications_service.dart';
+import '../../services/businesses_service.dart';
+import '../../services/notifications_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -39,6 +42,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _logout() async {
     await context.read<SessionService>().logout();
     if (!mounted) return;
+    // Cached data belongs to the account that just signed out — cleared
+    // immediately rather than left to whichever screen's own initState
+    // refresh() happens to run first, so a second citizen on the same
+    // device never sees even a brief flash of someone else's applications.
+    context.read<ApplicationsService>().clear();
+    context.read<NotificationsService>().clear();
+    context.read<BusinessesService>().clear();
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
   }
 
@@ -81,6 +91,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       await context.read<SessionService>().logout();
       if (!mounted) return;
+      context.read<ApplicationsService>().clear();
+      context.read<NotificationsService>().clear();
+      context.read<BusinessesService>().clear();
       Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your account has been erased, as far as the law allows.')));
     } on ApiError catch (e) {

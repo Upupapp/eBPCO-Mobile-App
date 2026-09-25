@@ -361,6 +361,83 @@ class MeProfile extends CitizenProfile {
   }
 }
 
+class Business {
+  final String id;
+  final String name;
+  final String category;
+  final String street;
+  final String barangay;
+  final String city;
+  final String province;
+  final String registrationNumber;
+  final String dateRegistered;
+  final String status;
+
+  const Business({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.street,
+    required this.barangay,
+    required this.city,
+    required this.province,
+    required this.registrationNumber,
+    required this.dateRegistered,
+    required this.status,
+  });
+
+  bool get isActive => status == 'Active';
+
+  factory Business.fromJson(Map<String, dynamic> json) => Business(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        category: json['category'] as String,
+        street: json['street'] as String,
+        barangay: json['barangay'] as String,
+        city: json['city'] as String,
+        province: json['province'] as String,
+        registrationNumber: json['registrationNumber'] as String,
+        dateRegistered: json['dateRegistered'] as String,
+        status: json['status'] as String,
+      );
+}
+
+class PaymentEntry {
+  final String id;
+  final String referenceNumber;
+  final String method;
+  final int amountCentavos;
+  final String status;
+  final String submittedAt;
+  final String? verifiedAt;
+  final String? officialReceiptNumber;
+  final String? rejectionReason;
+
+  const PaymentEntry({
+    required this.id,
+    required this.referenceNumber,
+    required this.method,
+    required this.amountCentavos,
+    required this.status,
+    required this.submittedAt,
+    required this.verifiedAt,
+    required this.officialReceiptNumber,
+    required this.rejectionReason,
+  });
+
+  factory PaymentEntry.fromJson(Map<String, dynamic> json) => PaymentEntry(
+        id: json['id'] as String,
+        referenceNumber: json['referenceNumber'] as String,
+        method: json['method'] as String,
+        amountCentavos: json['amountCentavos'] as int,
+        status: json['status'] as String,
+        submittedAt: json['submittedAt'] as String,
+        verifiedAt: json['verifiedAt'] as String?,
+        officialReceiptNumber: json['officialReceiptNumber'] as String?,
+        rejectionReason: json['rejectionReason'] as String?,
+      );
+}
+
 class ErasureReceipt {
   final String acceptedAt;
   final List<String> erasedCategories;

@@ -11,6 +11,8 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/status_badge.dart';
 import '../applications/application_detail_screen.dart';
 import '../applications/my_applications_screen.dart';
+import '../business/business_list_screen.dart';
+import '../payments/payments_list_screen.dart';
 import '../permits/permit_catalog_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -82,6 +84,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickAction(
+                      icon: Icons.store_outlined,
+                      label: 'My Businesses',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BusinessListScreen())),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _QuickAction(
+                      icon: Icons.payments_outlined,
+                      label: 'Payments',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentsListScreen())),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.xxl),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -134,6 +156,29 @@ class _StatCard extends StatelessWidget {
           Text(value, style: AppTypography.h1.copyWith(color: highlight ? AppColors.primary600 : AppColors.textPrimary)),
           const SizedBox(height: 2),
           Text(label, style: AppTypography.caption),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickAction({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppColors.primary600, size: 22),
+          const SizedBox(height: 6),
+          Text(label, style: AppTypography.bodyMedium),
         ],
       ),
     );

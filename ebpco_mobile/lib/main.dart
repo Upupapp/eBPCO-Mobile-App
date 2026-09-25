@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'screens/splash/splash_screen.dart';
 import 'services/applications_service.dart';
+import 'services/businesses_service.dart';
 import 'services/notifications_service.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
@@ -21,6 +22,7 @@ class EbpcoMobileApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SessionService()),
         ChangeNotifierProvider(create: (_) => ApplicationsService()),
         ChangeNotifierProvider(create: (_) => NotificationsService()),
+        ChangeNotifierProvider(create: (_) => BusinessesService()),
       ],
       child: MaterialApp(
         title: 'eBPCO',

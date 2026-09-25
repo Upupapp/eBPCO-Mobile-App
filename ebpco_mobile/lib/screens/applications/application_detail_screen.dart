@@ -9,6 +9,7 @@ import '../../theme/app_status.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/status_badge.dart';
+import '../payments/payment_flow_screen.dart';
 import '../permits/application_wizard_screen.dart';
 
 class ApplicationDetailScreen extends StatefulWidget {
@@ -148,6 +149,17 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                                       .push(MaterialPageRoute(builder: (_) => ApplicationWizardScreen(draftId: app.id)))
                                       .then((_) => _load()),
                                   child: const Text('Continue Application'),
+                                ),
+                              ),
+                            if (app.orderOfPayment != null &&
+                                (app.paymentStatus == 'Not Yet Available' || app.paymentStatus == 'Overdue'))
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.of(context)
+                                      .push(MaterialPageRoute(builder: (_) => PaymentFlowScreen(applicationId: app.id)))
+                                      .then((_) => _load()),
+                                  child: const Text('Pay Now'),
                                 ),
                               ),
                             if (_canCancel && app.lifecycleStatus != 'Draft') ...[
