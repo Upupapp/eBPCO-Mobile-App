@@ -46,6 +46,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   final _api = CitizenApi.instance;
 
   int _step = 1;
+  final _scroll = ScrollController();
+
+  void _goTo(int step) {
+    setState(() {
+      _step = step;
+      _error = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    });
+  }
   bool _busy = false;
   String? _error;
 
@@ -89,6 +100,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   @override
   void dispose() {
+    _scroll.dispose();
     for (final c in [
       _priorPermitClaim,
       _projectAddress,
@@ -198,7 +210,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       }
       await _loadRequirements();
       if (!mounted) return;
-      setState(() => _step = 2);
+      _goTo(2);
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);
     } finally {
@@ -232,7 +244,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         },
       });
       if (!mounted) return;
-      setState(() => _step = 3);
+      _goTo(3);
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);
     } finally {
@@ -309,7 +321,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     try {
       await _attachPending();
       if (!mounted) return;
-      setState(() => _step = 4);
+      _goTo(4);
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.citizenMessage);
@@ -434,6 +446,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                 _StepIndicator(step: _step),
                 Expanded(
                   child: SingleChildScrollView(
+                    controller: _scroll,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -692,7 +705,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         TextField(controller: _prcNumber, style: SoftType.field),
         const SizedBox(height: 26),
         _navRow(
-          onBack: () => setState(() => _step = 1),
+          onBack: () => _goTo(1),
           nextLabel: 'Continue',
           onNext: _toStep3,
         ),
@@ -800,7 +813,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         }),
         const SizedBox(height: 14),
         _navRow(
-          onBack: () => setState(() => _step = 2),
+          onBack: () => _goTo(2),
           nextLabel: 'Continue',
           onNext: _toStep4,
         ),
@@ -901,7 +914,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         ),
         const SizedBox(height: 16),
         _navRow(
-          onBack: () => setState(() => _step = 3),
+          onBack: () => _goTo(3),
           nextLabel: 'Submit Application',
           onNext: _submit,
         ),

@@ -30,6 +30,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   int _step = 1;
   String? _error;
+  final _scroll = ScrollController();
+
+  /// Every step change starts at the top with no leftover error.
+  void _goTo(int step) {
+    setState(() {
+      _step = step;
+      _error = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    });
+  }
   bool _submitting = false;
 
   // Step 1 — Personal
@@ -75,6 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _scroll.dispose();
     for (final c in [
       _firstName, _middleName, _lastName, _otherNationality, _email, _mobile, _street, _postal, _code, _password, _confirmPassword,
     ]) {
@@ -122,10 +135,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'Please specify your nationality.');
       return;
     }
-    setState(() {
-      _error = null;
-      _step = 2;
-    });
+    _goTo(2);
   }
 
   Future<void> _sendCode() async {
@@ -225,10 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'Please confirm the code sent to your email, or use Resend Code if it did not arrive.');
       return;
     }
-    setState(() {
-      _error = null;
-      _step = 3;
-    });
+    _goTo(3);
   }
 
   PasswordContext get _passwordContext =>
@@ -289,6 +296,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return SoftPageScaffold(
       title: 'Create Account',
       body: SingleChildScrollView(
+        controller: _scroll,
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -501,7 +509,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
         ),
         _errorLine(),
-        _navRow(onBack: () => setState(() => _step = 1), nextLabel: 'Continue', onNext: _toStep3),
+        _navRow(onBack: () => _goTo(1), nextLabel: 'Continue', onNext: _toStep3),
       ],
     );
   }
@@ -565,7 +573,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 12),
         _errorLine(),
-        _navRow(onBack: () => setState(() => _step = 2), nextLabel: 'Create Account', onNext: _submit, busy: _submitting),
+        _navRow(onBack: () => _goTo(2), nextLabel: 'Create Account', onNext: _submit, busy: _submitting),
       ],
     );
   }
