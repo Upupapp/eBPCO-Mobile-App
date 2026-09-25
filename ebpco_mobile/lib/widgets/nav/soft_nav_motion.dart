@@ -28,8 +28,13 @@ abstract final class SoftNavMotion {
   static const double bubbleDiameter = 52;
   static const double bubbleLift = 12;
   static const double bubbleTop = 0;
-  static const double iconSize = 18;
-  static const double centerDiameter = 56;
+  static const double iconSize = 22;
+
+  /// Inactive icons sit this far below the pill's top edge (centre), clear
+  /// of the border line rather than on the raised bubble's axis.
+  static const double iconCenterBelowBarTop = 26;
+  static const double labelBottom = 12;
+  static const double centerDiameter = 52;
   static const double surfaceRadius = 24;
   static const double sideInset = 14;
   static const double bottomInset = 12;

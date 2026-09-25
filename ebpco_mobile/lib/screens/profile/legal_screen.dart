@@ -6,14 +6,15 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/soft_page.dart';
 
 class LegalScreen extends StatefulWidget {
-  const LegalScreen({super.key});
+  final bool showPrivacy;
+  const LegalScreen({super.key, this.showPrivacy = false});
 
   @override
   State<LegalScreen> createState() => _LegalScreenState();
 }
 
 class _LegalScreenState extends State<LegalScreen> {
-  bool _showPrivacy = false;
+  late bool _showPrivacy = widget.showPrivacy;
 
   @override
   Widget build(BuildContext context) {

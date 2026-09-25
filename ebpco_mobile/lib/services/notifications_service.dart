@@ -41,6 +41,14 @@ class NotificationsService extends ChangeNotifier {
     await refresh();
   }
 
+  /// The portal's `markAllReadReal`: one PATCH per unread item, each allowed
+  /// to fail on its own, then a single refresh.
+  Future<void> markAllRead() async {
+    final unread = _items.where((n) => !n.isRead).toList();
+    await Future.wait(unread.map((n) => _api.markNotificationRead(n.id).catchError((_) {})));
+    await refresh();
+  }
+
   void clear() {
     _items = [];
     _error = null;

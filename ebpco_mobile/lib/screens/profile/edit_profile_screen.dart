@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/castilla.dart';
+import '../../domain/lgu_contact.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 
@@ -54,29 +56,66 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  /// The portal's `buildRectification`: only what changed is sent; a required
+  /// field left blank is ignored, an emptied optional field is sent as null
+  /// (clears it) only if something was there before.
+  Map<String, dynamic> _buildPatch() {
+    final p = context.read<SessionService>().profile;
+    final patch = <String, dynamic>{};
+    void required(String key, String next, String? before) {
+      if (next.isNotEmpty && next != (before ?? '')) patch[key] = next;
+    }
+
+    void clearable(String key, String next, String? before) {
+      if (next.isEmpty) {
+        if (before != null && before.isNotEmpty) patch[key] = null;
+      } else if (next != before) {
+        patch[key] = next;
+      }
+    }
+
+    required('firstName', _firstName.text.trim(), p?.firstName);
+    required('lastName', _lastName.text.trim(), p?.lastName);
+    required('mobileNumber', _mobile.text.trim(), p?.mobileNumber);
+    clearable('middleName', _middleName.text.trim(), p?.middleName);
+    clearable('street', _street.text.trim(), p?.street);
+    clearable('barangay', _barangay ?? '', p?.barangay);
+    clearable('city', castillaCity, p?.city);
+    clearable('province', castillaProvince, p?.province);
+    clearable('postalCode', _postal.text.trim(), p?.postalCode);
+    return patch;
+  }
+
   Future<void> _save() async {
+    final patch = _buildPatch();
+    final postal = patch['postalCode'];
+    final mobile = patch['mobileNumber'];
+    if (postal is String && !RegExp(r'^[0-9]{4}$').hasMatch(postal)) {
+      setState(() => _error = 'A Philippine postal code is four digits.');
+      return;
+    }
+    if (mobile is String && !RegExp(r'^(09\d{9}|\+639\d{9})$').hasMatch(mobile)) {
+      setState(() => _error = 'Enter a mobile number as 09XXXXXXXXX or +639XXXXXXXXX.');
+      return;
+    }
+    if (patch.isEmpty) {
+      setState(() => _error = null);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nothing to correct — those details are already on file.')));
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      await CitizenApi.instance.patchMe({
-        'firstName': _firstName.text.trim(),
-        'middleName': _middleName.text.trim().isEmpty ? null : _middleName.text.trim(),
-        'lastName': _lastName.text.trim(),
-        'mobileNumber': _mobile.text.trim(),
-        'street': _street.text.trim().isEmpty ? null : _street.text.trim(),
-        if (_barangay != null) 'barangay': _barangay,
-        'city': castillaCity,
-        'province': castillaProvince,
-        'postalCode': _postal.text.trim().isEmpty ? null : _postal.text.trim(),
-      });
+      await CitizenApi.instance.patchMe(patch);
       if (!mounted) return;
       await context.read<SessionService>().refreshProfile();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent to the Municipality.')));
       Navigator.of(context).pop();
     } on ApiError catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.citizenMessage);
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -91,6 +130,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           SoftFieldLabel(label),
           TextField(controller: controller, keyboardType: keyboardType, style: SoftType.field),
+        ],
+      ),
+    );
+  }
+
+  Widget _heldRow(String label, String? value) {
+    final shown = (value == null || value.isEmpty) ? 'Not recorded' : (label == 'Date of Birth' && value.length > 10 ? value.substring(0, 10) : value);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: SoftType.cellLabel.copyWith(fontSize: 13))),
+          Text(shown, style: SoftType.cellValue),
         ],
       ),
     );
@@ -123,7 +175,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               onChanged: (v) => setState(() => _barangay = v),
             ),
             const SizedBox(height: 16),
-            _field('ZIP Code', _postal, keyboardType: TextInputType.number),
+            _field('Postal Code', _postal, keyboardType: TextInputType.number),
+            const SizedBox(height: 4),
+            const SoftSectionHeader(title: 'On record'),
+            SoftCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _heldRow('Date of Birth', p?.dateOfBirth),
+                  const Divider(height: 1, color: SoftColors.line),
+                  _heldRow('Sex', p?.sex),
+                  const Divider(height: 1, color: SoftColors.line),
+                  _heldRow('Civil Status', p?.civilStatus),
+                  const Divider(height: 1, color: SoftColors.line),
+                  _heldRow('Nationality', p?.nationality),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'To correct any of these four, contact ${municipalEngineer.shortName} on ${municipalEngineer.mobile}.',
+              style: SoftType.cellLabel.copyWith(fontSize: 13),
+            ),
+            const SizedBox(height: 20),
             if (_error != null) ...[
               Text(_error!, style: AppTypography.error),
               const SizedBox(height: 14),

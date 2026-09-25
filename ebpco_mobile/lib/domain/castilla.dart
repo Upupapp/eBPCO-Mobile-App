@@ -13,5 +13,15 @@ const List<String> castillaBarangays = [
   'San Roque', 'San Vicente', 'Sogoy', 'Tomalaytay',
 ];
 
+/// The portal's `NATIONALITIES` (core/domain/ph-reference-data.ts), verbatim.
+/// 'Other' reveals a free-text field, same as the portal.
+const List<String> nationalities = [
+  'American', 'Australian', 'Bangladeshi', 'British', 'Bruneian', 'Burmese', 'Cambodian', 'Canadian',
+  'Chinese', 'Emirati', 'Filipino', 'French', 'German', 'Indian', 'Indonesian', 'Italian', 'Japanese',
+  'Jordanian', 'Kuwaiti', 'Lao', 'Malaysian', 'Mongolian', 'Nepalese', 'New Zealander', 'Pakistani',
+  'Qatari', 'Russian', 'Saudi Arabian', 'Singaporean', 'South Korean', 'Spanish', 'Sri Lankan',
+  'Taiwanese', 'Thai', 'Timorese', 'Vietnamese', 'Other',
+];
+
 const String castillaCity = 'Castilla';
 const String castillaProvince = 'Sorsogon';

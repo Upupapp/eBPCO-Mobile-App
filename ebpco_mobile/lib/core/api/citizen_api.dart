@@ -1,5 +1,7 @@
 import '../../domain/models.dart';
+import '../config/app_config.dart';
 import 'api_client.dart';
+import 'problem.dart';
 import 'token_store.dart';
 
 /// Typed methods over [ApiClient] for every citizen endpoint Phase 1 needs
@@ -15,8 +17,18 @@ class CitizenApi {
 
   // ── Auth ─────────────────────────────────────────────────────────────
 
-  Future<void> requestEmailVerification(String email) =>
-      _client.post('/auth/register/email/request', body: {'email': email}, auth: false);
+  /// `delivery` is 'sent', 'not-sent' (no mail provider) or 'failed'; a 409
+  /// means a code from moments ago is still live ('too-soon'). Same reading
+  /// as the portal's `requestRegistrationEmailCode`.
+  Future<({String kind, String detail})> requestEmailVerification(String email) async {
+    try {
+      final body = await _client.post<Map<String, dynamic>>('/auth/register/email/request', body: {'email': email}, auth: false);
+      return (kind: body['delivery'] as String? ?? 'sent', detail: body['detail'] as String? ?? '');
+    } on ApiError catch (e) {
+      if (e.status == 409) return (kind: 'too-soon', detail: e.citizenMessage);
+      rethrow;
+    }
+  }
 
   Future<void> confirmEmailVerification(String email, String code) =>
       _client.post('/auth/register/email/confirm', body: {'email': email, 'code': code}, auth: false);
@@ -117,7 +129,7 @@ class CitizenApi {
   /// A short-lived signed URL to the finished export archive, not the bytes
   /// — same shape as every other document-content route this app touches.
   Future<String> exportContent(String requestId) async =>
-      (await _client.get<Map<String, dynamic>>('/me/export/$requestId/content'))['url'] as String;
+      _absolute((await _client.get<Map<String, dynamic>>('/me/export/$requestId/content'))['url'] as String);
 
   // ── Applications ─────────────────────────────────────────────────────
 
@@ -334,7 +346,11 @@ class CitizenApi {
 
   /// A short-lived signed URL, not the bytes.
   Future<String> getDocumentContent(String documentId) async =>
-      (await _client.get<Map<String, dynamic>>('/documents/$documentId/content'))['url'] as String;
+      _absolute((await _client.get<Map<String, dynamic>>('/documents/$documentId/content'))['url'] as String);
+
+  /// The API mints signed links as paths on itself (`/documents/content?...`);
+  /// a browser handed a bare path has nowhere to go.
+  String _absolute(String url) => Uri.parse(AppConfig.apiBaseUrl).resolve(url).toString();
 
   /// Unattached: a real deletion. Attached: only stops it being offered
   /// here again — it stays exactly as filed on its application.

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../services/applications_service.dart';
 import '../../theme/app_status.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
@@ -10,6 +12,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
+import '../documents/document_viewer_screen.dart';
 import '../payments/payment_flow_screen.dart';
 import '../permits/application_wizard_screen.dart';
 import 'permit_document_screen.dart';
@@ -19,7 +22,8 @@ class ApplicationDetailScreen extends StatefulWidget {
   const ApplicationDetailScreen({super.key, required this.applicationId});
 
   @override
-  State<ApplicationDetailScreen> createState() => _ApplicationDetailScreenState();
+  State<ApplicationDetailScreen> createState() =>
+      _ApplicationDetailScreenState();
 }
 
 class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
@@ -59,9 +63,13 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     }
   }
 
+  /// The portal's `canCancel`: the applicant's own `-> Cancelled` transitions,
+  /// and only before any fee has been assessed.
   bool get _canCancel {
-    final status = _application?.lifecycleStatus;
-    return status == 'Draft' || status == 'Submitted' || status == 'Received' || status == 'Revision Required';
+    final app = _application;
+    if (app == null || app.orderOfPayment != null) return false;
+    const cancellable = {'Draft', 'Submitted', 'Received', 'Revision Required'};
+    return cancellable.contains(app.lifecycleStatus);
   }
 
   Future<void> _cancel() async {
@@ -69,9 +77,14 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Withdraw this application?'),
-        content: const Text('This cannot be undone. You can file a new application later if you change your mind.'),
+        content: const Text(
+          'This cannot be undone. You can file a new application later if you change your mind.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep it')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep it'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: SoftColors.danger),
@@ -85,9 +98,13 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     try {
       await _api.cancelApplication(widget.applicationId);
       await _load();
+      if (!mounted) return;
+      context.read<ApplicationsService>().refresh();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application withdrawn.')));
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.citizenMessage)));
     } finally {
       if (mounted) setState(() => _cancelling = false);
     }
@@ -101,16 +118,26 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       body: _loading && app == null
           ? const Center(child: CircularProgressIndicator())
           : _error != null && app == null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, style: AppTypography.error)))
-              : app == null
-                  ? const SizedBox.shrink()
-                  : RefreshIndicator(onRefresh: _load, child: _body(app)),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(_error!, style: AppTypography.error),
+              ),
+            )
+          : app == null
+          ? const SizedBox.shrink()
+          : RefreshIndicator(onRefresh: _load, child: _body(app)),
     );
   }
 
   Widget _body(ApplicationSummary app) {
-    final showPay = app.orderOfPayment != null && (app.paymentStatus == 'Not Yet Available' || app.paymentStatus == 'Overdue');
-    final showPermit = app.applicantStatus == 'Approved' || app.applicantStatus == 'Ready for Release';
+    final showPay =
+        app.orderOfPayment != null &&
+        (app.paymentStatus == 'Not Yet Available' ||
+            app.paymentStatus == 'Overdue');
+    final showPermit =
+        app.applicantStatus == 'Approved' ||
+        app.applicantStatus == 'Ready for Release';
     final cells = <(String, String)>[
       ('Application type', app.applicationAction),
       ('Payment', app.paymentStatus),
@@ -121,14 +148,20 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
       children: [
-        Align(alignment: Alignment.centerLeft, child: StatusBadge(label: app.applicantStatus)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: StatusBadge(label: app.applicantStatus),
+        ),
         const SizedBox(height: 12),
         Text(app.permitType, style: SoftType.h1),
         const SizedBox(height: 4),
         Text(app.referenceNumber, style: SoftType.body.copyWith(fontSize: 15)),
         if (app.businessName != null || app.location != null) ...[
           const SizedBox(height: 4),
-          Text([app.businessName, app.location].whereType<String>().join(' · '), style: SoftType.body),
+          Text(
+            [app.businessName, app.location].whereType<String>().join(' · '),
+            style: SoftType.body,
+          ),
         ],
         const SizedBox(height: 16),
         SoftCard(
@@ -137,15 +170,25 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SoftIconTile(icon: Icons.info_outline_rounded, background: SoftColors.white, size: 40),
+              const SoftIconTile(
+                icon: Icons.info_outline_rounded,
+                background: SoftColors.white,
+                size: 40,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Next step', style: SoftType.cellLabel.copyWith(fontSize: 13)),
+                    Text(
+                      'Next step',
+                      style: SoftType.cellLabel.copyWith(fontSize: 13),
+                    ),
                     const SizedBox(height: 2),
-                    Text(LifecycleStatusX.fromLabel(app.lifecycleStatus).nextStep, style: SoftType.body.copyWith(color: SoftColors.ink)),
+                    Text(
+                      LifecycleStatusX.fromLabel(app.lifecycleStatus).nextStep,
+                      style: SoftType.body.copyWith(color: SoftColors.ink),
+                    ),
                   ],
                 ),
               ),
@@ -168,7 +211,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             label: 'Continue Application',
             icon: Icons.edit_outlined,
             onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => ApplicationWizardScreen(draftId: app.id)))
+                .push(
+                  MaterialPageRoute(
+                    builder: (_) => ApplicationWizardScreen(draftId: app.id),
+                  ),
+                )
                 .then((_) => _load()),
           ),
           const SizedBox(height: 10),
@@ -178,7 +225,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             label: 'Pay Now',
             icon: Icons.payments_outlined,
             onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => PaymentFlowScreen(applicationId: app.id)))
+                .push(
+                  MaterialPageRoute(
+                    builder: (_) => PaymentFlowScreen(applicationId: app.id),
+                  ),
+                )
                 .then((_) => _load()),
           ),
           const SizedBox(height: 10),
@@ -188,13 +239,18 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             label: 'View Permit',
             kind: SoftPillKind.outline,
             icon: Icons.verified_outlined,
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => PermitDocumentScreen(applicationId: app.id, applicationReference: app.referenceNumber),
-            )),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PermitDocumentScreen(
+                  applicationId: app.id,
+                  applicationReference: app.referenceNumber,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 10),
         ],
-        if (_canCancel && app.lifecycleStatus != 'Draft') ...[
+        if (_canCancel) ...[
           SoftPillButton(
             label: _cancelling ? 'Withdrawing…' : 'Withdraw Application',
             kind: SoftPillKind.dangerSoft,
@@ -228,7 +284,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
             child: Column(
               children: [
-                for (final (i, t) in _timeline.reversed.indexed) _TimelineRow(entry: t, first: i == 0, last: i == _timeline.length - 1),
+                for (final (i, t) in _timeline.reversed.indexed)
+                  _TimelineRow(
+                    entry: t,
+                    first: i == 0,
+                    last: i == _timeline.length - 1,
+                  ),
               ],
             ),
           ),
@@ -252,7 +313,12 @@ class _Cell extends StatelessWidget {
         children: [
           Text(label, style: SoftType.cellLabel),
           const SizedBox(height: 4),
-          Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: SoftType.cellValue.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: SoftType.cellValue.copyWith(fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -265,27 +331,44 @@ class _DocumentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          const SoftIconTile(icon: Icons.insert_drive_file_outlined, size: 40),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(doc.label, style: SoftType.tileTitle),
-                const SizedBox(height: 2),
-                Text(doc.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.tileSub),
-              ],
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              DocumentViewerScreen(documentId: doc.id, title: doc.label),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            const SoftIconTile(
+              icon: Icons.insert_drive_file_outlined,
+              size: 40,
             ),
-          ),
-          if (doc.reviewStatus != null) ...[
-            const SizedBox(width: 8),
-            Flexible(child: StatusBadge(label: doc.reviewStatus!)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(doc.label, style: SoftType.tileTitle),
+                  const SizedBox(height: 2),
+                  Text(
+                    doc.fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SoftType.tileSub,
+                  ),
+                ],
+              ),
+            ),
+            if (doc.reviewStatus != null) ...[
+              const SizedBox(width: 8),
+              Flexible(child: StatusBadge(label: doc.reviewStatus!)),
+            ],
+            const Icon(Icons.chevron_right_rounded, color: SoftColors.chevron),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -295,7 +378,11 @@ class _TimelineRow extends StatelessWidget {
   final TimelineEntry entry;
   final bool first;
   final bool last;
-  const _TimelineRow({required this.entry, required this.first, required this.last});
+  const _TimelineRow({
+    required this.entry,
+    required this.first,
+    required this.last,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -314,10 +401,14 @@ class _TimelineRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: first ? SoftColors.primary : SoftColors.white,
                     shape: BoxShape.circle,
-                    border: Border.all(color: first ? SoftColors.primary : SoftColors.chevron, width: 2),
+                    border: Border.all(
+                      color: first ? SoftColors.primary : SoftColors.chevron,
+                      width: 2,
+                    ),
                   ),
                 ),
-                if (!last) Expanded(child: Container(width: 2, color: SoftColors.line)),
+                if (!last)
+                  Expanded(child: Container(width: 2, color: SoftColors.line)),
               ],
             ),
           ),
@@ -328,9 +419,17 @@ class _TimelineRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(entry.status, style: SoftType.tileTitle.copyWith(color: first ? SoftColors.ink : SoftColors.muted)),
+                  Text(
+                    entry.status,
+                    style: SoftType.tileTitle.copyWith(
+                      color: first ? SoftColors.ink : SoftColors.muted,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(entry.occurredAt.substring(0, 10), style: SoftType.cellLabel),
+                  Text(
+                    entry.occurredAt.substring(0, 10),
+                    style: SoftType.cellLabel,
+                  ),
                   if (entry.remarks != null && entry.remarks!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(entry.remarks!, style: SoftType.body),

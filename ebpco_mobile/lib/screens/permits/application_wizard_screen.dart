@@ -17,6 +17,7 @@ import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
+import '../profile/legal_screen.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
 /// `application-wizard.page.ts`: 4 steps (Business & Type → Details →
@@ -226,13 +227,54 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     });
   }
 
+  /// Like the portal's Save & Exit: saves what is on screen now, not only
+  /// what was saved the last time Continue was pressed.
   Future<void> _saveAndExit() async {
+    if (_draftId != null) {
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      try {
+        if (_step == 1) {
+          await _api.updateDraft(_draftId!, {
+            'applicationAction': _applicationAction,
+            'businessId': _businessId,
+            'priorPermitClaim': _needsPriorPermitClaim && _priorPermitClaim.text.trim().isNotEmpty ? _priorPermitClaim.text.trim() : null,
+          });
+        } else if (_step == 2) {
+          await _api.updateDraft(_draftId!, {
+            if (_projectAddress.text.trim().isNotEmpty) 'location': _projectAddress.text.trim(),
+            'form': {
+              'scopeOfWork': _scopeOfWork.text.trim().isEmpty ? null : _scopeOfWork.text.trim(),
+              'professionalName': _professionalName.text.trim().isEmpty ? null : _professionalName.text.trim(),
+              'prcNumber': _prcNumber.text.trim().isEmpty ? null : _prcNumber.text.trim(),
+            },
+          });
+        }
+      } on ApiError catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _error = e.citizenMessage;
+          _busy = false;
+        });
+        return;
+      }
+    }
     if (!mounted) return;
     context.read<ApplicationsService>().refresh();
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Draft saved. Continue it any time from My Applications.')));
     Navigator.of(context).pop();
   }
 
+  bool _understandRequirements = false;
+  bool _agreeTerms = false;
+
   Future<void> _submit() async {
+    if (!_understandRequirements || !_agreeTerms) {
+      setState(() => _error = 'Please check both declarations to continue.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -241,8 +283,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       await _api.submitDraft(_draftId!);
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application submitted to the Municipality.')));
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: _draftId!)));
     } on ApiError catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.citizenMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -576,7 +620,39 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           'Submitting moves this out of Draft and sends it for review. You can also save it as a draft and finish it later.',
           style: SoftType.body,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(value: _understandRequirements, onChanged: (v) => setState(() => _understandRequirements = v ?? false)),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _understandRequirements = !_understandRequirements),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'I understand the application requirements and certify the information provided is true and correct.',
+                    style: SoftType.body.copyWith(color: SoftColors.ink),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Checkbox(value: _agreeTerms, onChanged: (v) => setState(() => _agreeTerms = v ?? false)),
+            GestureDetector(
+              onTap: () => setState(() => _agreeTerms = !_agreeTerms),
+              child: Text('I agree to the ', style: SoftType.body.copyWith(color: SoftColors.ink)),
+            ),
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LegalScreen())),
+              child: Text('Terms & Conditions', style: SoftType.sectionLink.copyWith(fontSize: 14)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         _navRow(onBack: () => setState(() => _step = 3), nextLabel: 'Submit Application', onNext: _submit),
         const SizedBox(height: 8),
         SoftPillButton(label: 'Save as Draft & Exit', kind: SoftPillKind.text, onPressed: _busy ? null : _saveAndExit),

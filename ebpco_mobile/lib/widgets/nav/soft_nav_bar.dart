@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../../theme/soft_widget.dart';
@@ -42,6 +40,35 @@ class SoftNavBar extends StatelessWidget {
     final branch = activeIndex < 0 || activeIndex >= items.length ? 0 : activeIndex;
     final active = items[branch];
 
+    // Content scrolling under the tabs fades out above the pill instead of
+    // being sliced by its top edge.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Positioned(
+          top: -40,
+          left: 0,
+          right: 0,
+          height: 52,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [SoftColors.pageClear, SoftColors.page],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Positioned.fill(top: 12, child: IgnorePointer(child: ColoredBox(color: SoftColors.page))),
+        _bar(context, reduced, branch, active),
+      ],
+    );
+  }
+
+  Widget _bar(BuildContext context, bool reduced, int branch, NavItemData active) {
     return SafeArea(
       top: false,
       child: Padding(
@@ -64,17 +91,11 @@ class SoftNavBar extends StatelessWidget {
                         borderRadius: BorderRadius.circular(SoftNavMotion.surfaceRadius),
                         boxShadow: SoftShadows.nav,
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(SoftNavMotion.surfaceRadius),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: SoftColors.navFill,
-                              borderRadius: BorderRadius.circular(SoftNavMotion.surfaceRadius),
-                              border: Border.all(color: SoftColors.line),
-                            ),
-                          ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: SoftColors.white,
+                          borderRadius: BorderRadius.circular(SoftNavMotion.surfaceRadius),
+                          border: Border.all(color: SoftColors.lineSoft),
                         ),
                       ),
                     ),
@@ -131,40 +152,38 @@ class _NavItem extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                Positioned(
-                  top: SoftNavMotion.bubbleTop,
-                  left: 0,
-                  right: 0,
-                  height: SoftNavMotion.bubbleDiameter,
-                  child: Center(
-                    child: isActive
-                        ? const SizedBox.shrink()
-                        : Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Icon(item.outlineIcon, color: color, size: SoftNavMotion.iconSize),
-                              if (item.badge > 0)
-                                Positioned(
-                                  top: -3,
-                                  right: -4,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: SoftColors.danger,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: SoftColors.white, width: 1.2),
-                                    ),
-                                  ),
+                if (!isActive)
+                  Positioned(
+                    top: SoftNavMotion.bubbleLift + SoftNavMotion.iconCenterBelowBarTop - SoftNavMotion.iconSize / 2,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(item.outlineIcon, color: color, size: SoftNavMotion.iconSize),
+                          if (item.badge > 0)
+                            Positioned(
+                              top: -2,
+                              right: -3,
+                              child: Container(
+                                width: 9,
+                                height: 9,
+                                decoration: BoxDecoration(
+                                  color: SoftColors.danger,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: SoftColors.white, width: 1.5),
                                 ),
-                            ],
-                          ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
                 Positioned(
                   left: 2,
                   right: 2,
-                  bottom: 10,
+                  bottom: SoftNavMotion.labelBottom,
                   child: Text(
                     item.label,
                     maxLines: 1,
@@ -281,7 +300,7 @@ class _CenterActionState extends State<_CenterAction> with SingleTickerProviderS
               Positioned(
                 left: 2,
                 right: 2,
-                bottom: 10,
+                bottom: SoftNavMotion.labelBottom,
                 child: Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: SoftType.nav),
               ),
             ],

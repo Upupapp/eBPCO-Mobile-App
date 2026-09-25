@@ -155,6 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SoftInitialAvatar(initials: _initials(profile?.firstName, profile?.lastName), size: 64),
             ],
           ),
+          const SizedBox(height: 10),
+          Text(
+            verified
+                ? 'Your email address was confirmed when you signed up.'
+                : 'Your email address was not confirmed when this account was created. This does not block '
+                    'anything here; the Municipality may confirm it with you directly.',
+            style: SoftType.cellLabel.copyWith(fontSize: 13),
+          ),
           const SizedBox(height: 20),
           Row(
             children: [

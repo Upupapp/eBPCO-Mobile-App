@@ -8,8 +8,8 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
-import '../applications/application_detail_screen.dart';
 import 'payment_flow_screen.dart';
+import 'payment_receipt_screen.dart';
 
 final _pesos = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
 String pesos(int centavos) => _pesos.format(centavos / 100);
@@ -125,9 +125,10 @@ class _PaymentRow extends StatelessWidget {
                   onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentFlowScreen(applicationId: application.id))),
                 )
               : SoftPillButton(
-                  label: 'View Details',
+                  label: 'View Receipt',
                   kind: SoftPillKind.outline,
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: application.id))),
+                  icon: Icons.receipt_long_outlined,
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PaymentReceiptScreen(applicationId: application.id))),
                 ),
         ],
       ),

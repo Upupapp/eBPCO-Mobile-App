@@ -97,9 +97,9 @@ class _RootShellState extends State<RootShell> {
         onCenterPressed: _openServices,
         items: [
           const NavItemData(outlineIcon: Icons.home_outlined, filledIcon: Icons.home_rounded, label: 'Home'),
-          const NavItemData(outlineIcon: Icons.description_outlined, filledIcon: Icons.description_rounded, label: 'Applications'),
-          NavItemData(outlineIcon: Icons.notifications_none_rounded, filledIcon: Icons.notifications_rounded, label: 'Alerts', badge: unread),
-          const NavItemData(outlineIcon: Icons.person_outline_rounded, filledIcon: Icons.person_rounded, label: 'Profile'),
+          const NavItemData(outlineIcon: Icons.assignment_outlined, filledIcon: Icons.assignment_rounded, label: 'Applications'),
+          NavItemData(outlineIcon: Icons.notifications_outlined, filledIcon: Icons.notifications_rounded, label: 'Alerts', badge: unread),
+          const NavItemData(outlineIcon: Icons.account_circle_outlined, filledIcon: Icons.account_circle_rounded, label: 'Profile'),
         ],
       ),
     );

@@ -34,6 +34,9 @@ class SoftColors {
   static const muted = AppColors.gray500;
   static const line = AppColors.gray200;
   static const page = AppColors.background;
+
+  /// [page] at alpha 0, for fades (fading to transparent black would grey them).
+  static const pageClear = Color(0x00F4F5F7);
   static const white = Color(0xFFFFFFFF);
   static const clear = Color(0x00000000);
 

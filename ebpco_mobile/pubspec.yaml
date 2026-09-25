@@ -46,6 +46,7 @@ dependencies:
   # First-run onboarding flag only — a non-secret UI preference, so it does
   # not belong in the keystore alongside the auth tokens.
   shared_preferences: ^2.5.5
+  pdfx: ^2.11.0
 
 dev_dependencies:
   flutter_test:

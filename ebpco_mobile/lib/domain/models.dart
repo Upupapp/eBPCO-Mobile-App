@@ -35,13 +35,27 @@ class OrderOfPayment {
   final String? dueDate;
   final int totalCentavos;
 
-  const OrderOfPayment({required this.number, required this.assessedAt, required this.dueDate, required this.totalCentavos});
+  /// filing / processing / architectural / structural / electrical / others,
+  /// in centavos — the Order of Payment's own breakdown.
+  final Map<String, int> fees;
+
+  const OrderOfPayment({
+    required this.number,
+    required this.assessedAt,
+    required this.dueDate,
+    required this.totalCentavos,
+    this.fees = const {},
+  });
 
   factory OrderOfPayment.fromJson(Map<String, dynamic> json) => OrderOfPayment(
         number: json['number'] as String,
         assessedAt: json['assessedAt'] as String,
         dueDate: json['dueDate'] as String?,
         totalCentavos: json['totalCentavos'] as int,
+        fees: {
+          for (final e in ((json['fees'] as Map<String, dynamic>?) ?? const {}).entries)
+            if (e.value is int) e.key: e.value as int,
+        },
       );
 }
 
