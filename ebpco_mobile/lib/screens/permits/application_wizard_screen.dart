@@ -27,14 +27,19 @@ import '../profile/legal_screen.dart';
 class ApplicationWizardScreen extends StatefulWidget {
   /// Set when starting fresh from the catalog.
   final String? permitType;
+
   /// Set when resuming a Draft from Application Detail's "Continue".
   final String? draftId;
 
   const ApplicationWizardScreen({super.key, this.permitType, this.draftId})
-      : assert(permitType != null || draftId != null, 'Provide either permitType (new) or draftId (resume).');
+    : assert(
+        permitType != null || draftId != null,
+        'Provide either permitType (new) or draftId (resume).',
+      );
 
   @override
-  State<ApplicationWizardScreen> createState() => _ApplicationWizardScreenState();
+  State<ApplicationWizardScreen> createState() =>
+      _ApplicationWizardScreenState();
 }
 
 class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
@@ -56,7 +61,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   final _prcNumber = TextEditingController();
 
   List<RequirementDoc> _requirements = [];
-  final Map<String, String> _attachedDocIds = {}; // requirementCode -> documentId
+  final Map<String, String> _attachedDocIds =
+      {}; // requirementCode -> documentId
   final Map<String, String> _attachedFileNames = {};
   String? _uploadingCode;
 
@@ -66,7 +72,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   void initState() {
     super.initState();
     _permitType = widget.permitType ?? '';
-    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<BusinessesService>().refresh());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<BusinessesService>().refresh(),
+    );
     if (_isResuming) {
       _draftId = widget.draftId;
       _loadDraft();
@@ -75,7 +83,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   @override
   void dispose() {
-    for (final c in [_priorPermitClaim, _projectAddress, _scopeOfWork, _professionalName, _prcNumber]) {
+    for (final c in [
+      _priorPermitClaim,
+      _projectAddress,
+      _scopeOfWork,
+      _professionalName,
+      _prcNumber,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -105,7 +119,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     if (_draftId != null) {
       final reqs = await _api.applicationRequirements(_draftId!);
       for (final r in reqs) {
-        if (r.documentIds.isNotEmpty) _attachedDocIds[r.code] = r.documentIds.first;
+        if (r.documentIds.isNotEmpty) {
+          _attachedDocIds[r.code] = r.documentIds.first;
+        }
       }
       if (!mounted) return;
       setState(() => _requirements = reqs);
@@ -119,8 +135,24 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   bool get _needsPriorPermitClaim => _applicationAction != 'New';
 
   Future<void> _toStep2() async {
+    if (_businessId == null) {
+      setState(() => _error = 'Please select a business.');
+      return;
+    }
+    final chosen = context.read<BusinessesService>().businesses.where(
+      (b) => b.id == _businessId,
+    );
+    if (chosen.isNotEmpty && !chosen.first.isActive) {
+      setState(
+        () => _error = 'This business is inactive. Reactivate it before applying for a permit.',
+      );
+      return;
+    }
     if (_needsPriorPermitClaim && _priorPermitClaim.text.trim().isEmpty) {
-      setState(() => _error = 'Enter the permit number this application renews/amends.');
+      setState(
+        () => _error =
+            'Please enter the permit number being ${_applicationAction == 'Renewal' ? 'renewed' : 'amended'}.',
+      );
       return;
     }
     setState(() {
@@ -133,7 +165,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           permitType: _permitType,
           applicationAction: _applicationAction,
           businessId: _businessId,
-          priorPermitClaim: _needsPriorPermitClaim ? _priorPermitClaim.text.trim() : null,
+          priorPermitClaim: _needsPriorPermitClaim
+              ? _priorPermitClaim.text.trim()
+              : null,
           saveAsDraft: true,
         );
         _draftId = created.id;
@@ -141,7 +175,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         await _api.updateDraft(_draftId!, {
           'applicationAction': _applicationAction,
           'businessId': _businessId,
-          'priorPermitClaim': _needsPriorPermitClaim ? _priorPermitClaim.text.trim() : null,
+          'priorPermitClaim': _needsPriorPermitClaim
+              ? _priorPermitClaim.text.trim()
+              : null,
         });
       }
       await _loadRequirements();
@@ -155,8 +191,11 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Future<void> _toStep3() async {
-    if (_projectAddress.text.trim().isEmpty || _scopeOfWork.text.trim().isEmpty) {
-      setState(() => _error = 'Enter the project address and scope of work.');
+    if (_projectAddress.text.trim().isEmpty ||
+        _scopeOfWork.text.trim().isEmpty) {
+      setState(
+        () => _error = 'Please complete the project address and scope of work.',
+      );
       return;
     }
     setState(() {
@@ -168,8 +207,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         'location': _projectAddress.text.trim(),
         'form': {
           'scopeOfWork': _scopeOfWork.text.trim(),
-          'professionalName': _professionalName.text.trim().isEmpty ? null : _professionalName.text.trim(),
-          'prcNumber': _prcNumber.text.trim().isEmpty ? null : _prcNumber.text.trim(),
+          'professionalName': _professionalName.text.trim().isEmpty
+              ? null
+              : _professionalName.text.trim(),
+          'prcNumber': _prcNumber.text.trim().isEmpty
+              ? null
+              : _prcNumber.text.trim(),
         },
       });
       if (!mounted) return;
@@ -182,13 +225,19 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Future<void> _pickAndUpload(RequirementDoc doc) async {
-    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
+    );
     final picked = result?.files.single;
     if (picked == null) return;
 
     setState(() => _uploadingCode = doc.code);
     try {
-      final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+      final bytes =
+          picked.bytes ??
+          (picked.path != null ? await File(picked.path!).readAsBytes() : null);
       if (bytes == null) throw const ApiError(0, null, true);
       final documentId = await _api.uploadDocument(
         fileName: picked.name,
@@ -204,18 +253,26 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       });
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.citizenMessage)));
     } finally {
       if (mounted) setState(() => _uploadingCode = null);
     }
   }
 
-  bool get _requiredDocumentsComplete =>
-      _requirements.where((r) => r.required).every((r) => _attachedDocIds.containsKey(r.code));
+  bool get _requiredDocumentsComplete => _requirements
+      .where((r) => r.required)
+      .every((r) => _attachedDocIds.containsKey(r.code));
 
   Future<void> _toStep4() async {
     if (!_requiredDocumentsComplete) {
-      setState(() => _error = 'Attach every required document before continuing.');
+      final missing = _requirements
+          .where((r) => r.required && !_attachedDocIds.containsKey(r.code))
+          .length;
+      setState(
+        () =>
+            _error = 'Please attach all required documents ($missing missing).',
+      );
       return;
     }
     // Documents already carry applicationId/requirementCode from the upload
@@ -240,15 +297,26 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           await _api.updateDraft(_draftId!, {
             'applicationAction': _applicationAction,
             'businessId': _businessId,
-            'priorPermitClaim': _needsPriorPermitClaim && _priorPermitClaim.text.trim().isNotEmpty ? _priorPermitClaim.text.trim() : null,
+            'priorPermitClaim':
+                _needsPriorPermitClaim &&
+                    _priorPermitClaim.text.trim().isNotEmpty
+                ? _priorPermitClaim.text.trim()
+                : null,
           });
         } else if (_step == 2) {
           await _api.updateDraft(_draftId!, {
-            if (_projectAddress.text.trim().isNotEmpty) 'location': _projectAddress.text.trim(),
+            if (_projectAddress.text.trim().isNotEmpty)
+              'location': _projectAddress.text.trim(),
             'form': {
-              'scopeOfWork': _scopeOfWork.text.trim().isEmpty ? null : _scopeOfWork.text.trim(),
-              'professionalName': _professionalName.text.trim().isEmpty ? null : _professionalName.text.trim(),
-              'prcNumber': _prcNumber.text.trim().isEmpty ? null : _prcNumber.text.trim(),
+              'scopeOfWork': _scopeOfWork.text.trim().isEmpty
+                  ? null
+                  : _scopeOfWork.text.trim(),
+              'professionalName': _professionalName.text.trim().isEmpty
+                  ? null
+                  : _professionalName.text.trim(),
+              'prcNumber': _prcNumber.text.trim().isEmpty
+                  ? null
+                  : _prcNumber.text.trim(),
             },
           });
         }
@@ -263,7 +331,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     }
     if (!mounted) return;
     context.read<ApplicationsService>().refresh();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Draft saved. Continue it any time from My Applications.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Draft saved. Continue it any time from My Applications.',
+        ),
+      ),
+    );
     Navigator.of(context).pop();
   }
 
@@ -283,8 +357,16 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       await _api.submitDraft(_draftId!);
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application submitted to the Municipality.')));
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: _draftId!)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Application submitted to the Municipality.'),
+        ),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ApplicationDetailScreen(applicationId: _draftId!),
+        ),
+      );
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.citizenMessage);
@@ -301,7 +383,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         if (_draftId != null && _step < 4)
           TextButton(
             onPressed: _busy ? null : _saveAndExit,
-            child: Text('Save & Exit', style: SoftType.sectionLink.copyWith(fontSize: 14)),
+            child: Text(
+              'Save & Exit',
+              style: SoftType.sectionLink.copyWith(fontSize: 14),
+            ),
           ),
       ],
       body: _busy && _requirements.isEmpty && _step == 1 && _isResuming
@@ -320,10 +405,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                         if (_step == 2) _step2(),
                         if (_step == 3) _step3(),
                         if (_step == 4) _step4(),
-                        if (_error != null) ...[
-                          const SizedBox(height: 14),
-                          Text(_error!, style: AppTypography.error),
-                        ],
                       ],
                     ),
                   ),
@@ -334,16 +415,47 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: SoftType.fieldLabel.copyWith(fontSize: 14)),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: SoftType.fieldLabel.copyWith(fontSize: 14)),
+  );
 
-  Widget _navRow({required VoidCallback onBack, required String nextLabel, required VoidCallback onNext}) {
-    return Row(
+  /// Errors sit right above the buttons that raised them, not below.
+  Widget _errorLine() => _error == null
+      ? const SizedBox.shrink()
+      : Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(_error!, style: AppTypography.error),
+        );
+
+  Widget _navRow({
+    required VoidCallback onBack,
+    required String nextLabel,
+    required VoidCallback onNext,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: SoftPillButton(label: 'Back', kind: SoftPillKind.outline, onPressed: _busy ? null : onBack)),
-        const SizedBox(width: 12),
-        Expanded(flex: 2, child: SoftPillButton(label: nextLabel, busy: _busy, onPressed: onNext)),
+        _errorLine(),
+        Row(
+          children: [
+            Expanded(
+              child: SoftPillButton(
+                label: 'Back',
+                kind: SoftPillKind.outline,
+                onPressed: _busy ? null : onBack,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: SoftPillButton(
+                label: nextLabel,
+                busy: _busy,
+                onPressed: onNext,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -364,7 +476,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             children: [
               const SoftIconTile(icon: Icons.description_outlined, size: 40),
               const SizedBox(width: 12),
-              Expanded(child: Text(_permitType, style: SoftType.tileTitle.copyWith(fontSize: 16))),
+              Expanded(
+                child: Text(
+                  _permitType,
+                  style: SoftType.tileTitle.copyWith(fontSize: 16),
+                ),
+              ),
             ],
           ),
         ),
@@ -377,7 +494,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(businesses.error!, style: SoftType.body.copyWith(color: SoftColors.pendingInk)),
+                Text(
+                  businesses.error!,
+                  style: SoftType.body.copyWith(color: SoftColors.pendingInk),
+                ),
                 const SizedBox(height: 10),
                 SoftPillButton(
                   label: 'Try again',
@@ -396,7 +516,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  businesses.loading ? 'Loading your businesses…' : 'No active businesses.',
+                  businesses.loading
+                      ? 'Loading your businesses…'
+                      : 'No active businesses.',
                   style: SoftType.body.copyWith(color: SoftColors.ink),
                 ),
                 if (!businesses.loading) ...[
@@ -406,10 +528,16 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                     kind: SoftPillKind.outline,
                     icon: Icons.add_rounded,
                     onPressed: () => Navigator.of(context)
-                        .push(MaterialPageRoute(builder: (_) => const RegisterBusinessScreen()))
+                        .push(
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterBusinessScreen(),
+                          ),
+                        )
                         .then((_) {
-                      if (mounted) context.read<BusinessesService>().refresh();
-                    }),
+                          if (mounted) {
+                            context.read<BusinessesService>().refresh();
+                          }
+                        }),
                   ),
                 ],
               ],
@@ -417,23 +545,35 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           )
         else
           DropdownButtonFormField<String>(
-            initialValue: active.any((b) => b.id == _businessId) ? _businessId : null,
+            initialValue: active.any((b) => b.id == _businessId)
+                ? _businessId
+                : null,
             hint: const Text('Select a business'),
             isExpanded: true,
             borderRadius: BorderRadius.circular(SoftRadius.md),
-            items: active.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
+            items: active
+                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+                .toList(),
             onChanged: (v) => setState(() => _businessId = v),
           ),
         const SizedBox(height: 18),
         _label('Application Type'),
         Row(
           children: [
-            for (final (i, v) in const ['New', 'Renewal', 'Amendment'].indexed) ...[
+            for (final (i, v) in const [
+              'New',
+              'Renewal',
+              'Amendment',
+            ].indexed) ...[
               if (i > 0) const SizedBox(width: 8),
               Expanded(
                 child: SizedBox(
                   height: 44,
-                  child: SoftFilterChip(label: v, selected: _applicationAction == v, onTap: () => setState(() => _applicationAction = v)),
+                  child: SoftFilterChip(
+                    label: v,
+                    selected: _applicationAction == v,
+                    onTap: () => setState(() => _applicationAction = v),
+                  ),
                 ),
               ),
             ],
@@ -445,12 +585,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           TextField(
             controller: _priorPermitClaim,
             style: SoftType.field,
-            decoration: const InputDecoration(hintText: 'e.g. BP-2020-000042, as printed on the permit'),
+            decoration: const InputDecoration(
+              hintText: 'e.g. BP-2020-000042, as printed on the permit',
+            ),
           ),
           const SizedBox(height: 6),
-          Text('The office confirms this from the permit itself — self-reported here.', style: SoftType.cellLabel),
+          Text(
+            'The office confirms this from the permit itself — self-reported here.',
+            style: SoftType.cellLabel,
+          ),
         ],
         const SizedBox(height: 26),
+        _errorLine(),
         SoftPillButton(label: 'Continue', busy: _busy, onPressed: _toStep2),
       ],
     );
@@ -463,7 +609,11 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Text('Project details', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 18),
         _label('Project / Business Address'),
-        TextField(controller: _projectAddress, style: SoftType.field, decoration: const InputDecoration(hintText: 'Street, Barangay, City')),
+        TextField(
+          controller: _projectAddress,
+          style: SoftType.field,
+          decoration: const InputDecoration(hintText: 'Street, Barangay, City'),
+        ),
         const SizedBox(height: 16),
         _label('Scope of Work / Purpose'),
         TextField(
@@ -472,25 +622,40 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           style: SoftType.field,
           decoration: InputDecoration(
             hintText: 'Briefly describe the work or purpose',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(SoftRadius.md)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(SoftRadius.md),
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(SoftRadius.md),
               borderSide: const BorderSide(color: SoftColors.line),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(SoftRadius.md),
-              borderSide: const BorderSide(color: SoftColors.primary, width: 1.5),
+              borderSide: const BorderSide(
+                color: SoftColors.primary,
+                width: 1.5,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 16),
         _label('Professional in Charge (optional)'),
-        TextField(controller: _professionalName, style: SoftType.field, decoration: const InputDecoration(hintText: 'Engineer / Architect name')),
+        TextField(
+          controller: _professionalName,
+          style: SoftType.field,
+          decoration: const InputDecoration(
+            hintText: 'Engineer / Architect name',
+          ),
+        ),
         const SizedBox(height: 16),
         _label('PRC License No. (optional)'),
         TextField(controller: _prcNumber, style: SoftType.field),
         const SizedBox(height: 26),
-        _navRow(onBack: () => setState(() => _step = 1), nextLabel: 'Continue', onNext: _toStep3),
+        _navRow(
+          onBack: () => setState(() => _step = 1),
+          nextLabel: 'Continue',
+          onNext: _toStep3,
+        ),
       ],
     );
   }
@@ -517,9 +682,15 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SoftIconTile(
-                        icon: attached != null ? Icons.check_rounded : Icons.upload_file_rounded,
-                        background: attached != null ? SoftColors.verifiedSoft : SoftColors.primarySoft,
-                        foreground: attached != null ? SoftColors.verifiedInk : SoftColors.primary,
+                        icon: attached != null
+                            ? Icons.check_rounded
+                            : Icons.upload_file_rounded,
+                        background: attached != null
+                            ? SoftColors.verifiedSoft
+                            : SoftColors.primarySoft,
+                        foreground: attached != null
+                            ? SoftColors.verifiedInk
+                            : SoftColors.primary,
                         size: 40,
                       ),
                       const SizedBox(width: 12),
@@ -531,7 +702,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                             const SizedBox(height: 6),
                             SoftStatusPill(
                               label: doc.required ? 'Required' : 'Optional',
-                              tone: doc.required ? SoftStatusTone.danger : SoftStatusTone.neutral,
+                              tone: doc.required
+                                  ? SoftStatusTone.danger
+                                  : SoftStatusTone.neutral,
                             ),
                           ],
                         ),
@@ -544,7 +717,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                   ],
                   const SizedBox(height: 12),
                   if (uploading)
-                    const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)))
+                    const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    )
                   else if (attached != null)
                     Row(
                       children: [
@@ -553,12 +732,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                             _attachedFileNames[doc.code] ?? 'Attached',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: SoftType.cellValue.copyWith(color: SoftColors.verifiedInk),
+                            style: SoftType.cellValue.copyWith(
+                              color: SoftColors.verifiedInk,
+                            ),
                           ),
                         ),
                         TextButton(
                           onPressed: () => _pickAndUpload(doc),
-                          child: Text('Replace', style: SoftType.sectionLink.copyWith(fontSize: 14)),
+                          child: Text(
+                            'Replace',
+                            style: SoftType.sectionLink.copyWith(fontSize: 14),
+                          ),
                         ),
                       ],
                     )
@@ -575,23 +759,27 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           );
         }),
         const SizedBox(height: 14),
-        _navRow(onBack: () => setState(() => _step = 2), nextLabel: 'Continue', onNext: _toStep4),
+        _navRow(
+          onBack: () => setState(() => _step = 2),
+          nextLabel: 'Continue',
+          onNext: _toStep4,
+        ),
       ],
     );
   }
 
   Widget _step4() {
     Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: SoftType.cellLabel.copyWith(fontSize: 13)),
-              const SizedBox(height: 2),
-              Text(value, style: SoftType.cellValue),
-            ],
-          ),
-        );
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: SoftType.cellLabel.copyWith(fontSize: 13)),
+          const SizedBox(height: 2),
+          Text(value, style: SoftType.cellValue),
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -611,7 +799,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               const Divider(height: 1, color: SoftColors.line),
               row('Scope of Work', _scopeOfWork.text),
               const Divider(height: 1, color: SoftColors.line),
-              row('Documents attached', '${_attachedDocIds.length} of ${_requirements.length}'),
+              row(
+                'Documents attached',
+                '${_attachedDocIds.length} of ${_requirements.length}',
+              ),
             ],
           ),
         ),
@@ -624,10 +815,16 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Checkbox(value: _understandRequirements, onChanged: (v) => setState(() => _understandRequirements = v ?? false)),
+            Checkbox(
+              value: _understandRequirements,
+              onChanged: (v) =>
+                  setState(() => _understandRequirements = v ?? false),
+            ),
             Expanded(
               child: GestureDetector(
-                onTap: () => setState(() => _understandRequirements = !_understandRequirements),
+                onTap: () => setState(
+                  () => _understandRequirements = !_understandRequirements,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
@@ -641,21 +838,39 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         ),
         Row(
           children: [
-            Checkbox(value: _agreeTerms, onChanged: (v) => setState(() => _agreeTerms = v ?? false)),
-            GestureDetector(
-              onTap: () => setState(() => _agreeTerms = !_agreeTerms),
-              child: Text('I agree to the ', style: SoftType.body.copyWith(color: SoftColors.ink)),
+            Checkbox(
+              value: _agreeTerms,
+              onChanged: (v) => setState(() => _agreeTerms = v ?? false),
             ),
             GestureDetector(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LegalScreen())),
-              child: Text('Terms & Conditions', style: SoftType.sectionLink.copyWith(fontSize: 14)),
+              onTap: () => setState(() => _agreeTerms = !_agreeTerms),
+              child: Text(
+                'I agree to the ',
+                style: SoftType.body.copyWith(color: SoftColors.ink),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const LegalScreen())),
+              child: Text(
+                'Terms & Conditions',
+                style: SoftType.sectionLink.copyWith(fontSize: 14),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        _navRow(onBack: () => setState(() => _step = 3), nextLabel: 'Submit Application', onNext: _submit),
+        _navRow(
+          onBack: () => setState(() => _step = 3),
+          nextLabel: 'Submit Application',
+          onNext: _submit,
+        ),
         const SizedBox(height: 8),
-        SoftPillButton(label: 'Save as Draft & Exit', kind: SoftPillKind.text, onPressed: _busy ? null : _saveAndExit),
+        SoftPillButton(
+          label: 'Save as Draft & Exit',
+          kind: SoftPillKind.text,
+          onPressed: _busy ? null : _saveAndExit,
+        ),
       ],
     );
   }
@@ -673,7 +888,10 @@ class _StepIndicator extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Step $step of 4 · ${labels[step - 1]}', style: SoftType.eyebrow),
+          Text(
+            'Step $step of 4 · ${labels[step - 1]}',
+            style: SoftType.eyebrow,
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
