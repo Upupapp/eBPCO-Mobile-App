@@ -87,7 +87,13 @@ class _RootShellState extends State<RootShell> {
   @override
   Widget build(BuildContext context) {
     final unread = context.watch<NotificationsService>().unreadCount;
-    return Scaffold(
+    // System Back on another tab returns to Home first; only Home leaves the app.
+    return PopScope(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onTap(0);
+      },
+      child: Scaffold(
       backgroundColor: SoftColors.page,
       extendBody: true,
       body: SoftPageWipe(index: _index, children: _screens),
@@ -101,6 +107,7 @@ class _RootShellState extends State<RootShell> {
           NavItemData(outlineIcon: Icons.notifications_outlined, filledIcon: Icons.notifications_rounded, label: 'Alerts', badge: unread),
           const NavItemData(outlineIcon: Icons.account_circle_outlined, filledIcon: Icons.account_circle_rounded, label: 'Profile'),
         ],
+      ),
       ),
     );
   }
