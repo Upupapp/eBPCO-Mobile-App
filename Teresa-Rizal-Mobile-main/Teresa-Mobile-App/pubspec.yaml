@@ -1,0 +1,177 @@
+name: teresa_rizal
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.2.3
+  file_picker: ^11.0.3
+  permission_handler: ^12.0.1
+  shared_preferences: ^2.5.5
+  provider: ^6.1.5+1
+  intl: ^0.20.3
+  url_launcher: ^6.3.2
+  share_plus: ^11.0.0
+  flutter_svg: ^2.3.0
+
+# Launcher icons are GENERATED, never hand-edited. Regenerate on either lane with:
+#
+#     dart run flutter_launcher_icons
+#
+# Source art is the municipality's own official seal
+# (assets/images/Logo/teresa-rizal-seal.png), composed into tool/icon/ by
+# tool/icon/README.md's recipe. The app shipped Flutter's default logo until
+# 2026-08-29 — on Android 12+ that is also the cold-start splash icon, so it was
+# the first thing every citizen saw. See docs/FE09_PRODUCT_METADATA.md.
+flutter_launcher_icons:
+  image_path: "tool/icon/teresa_rizal_icon.png"
+  # White, not the app's navy: the seal is drawn for a light ground (black outer
+  # ring, yellow band), and on navy the ring disappears into the background.
+  android: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "tool/icon/teresa_rizal_icon_foreground.png"
+  # iOS icons must have no alpha channel or App Store submission is rejected.
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    background_color: "#FFFFFF"
+    theme_color: "#0B1730"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Drives the real app on a real device/simulator from inside its own
+  # process — the only way this lane can walk the screens, since OS-level
+  # synthetic taps depend on an Accessibility grant that is not portable
+  # between machines. See docs/FE03_DEVICE_VERIFICATION.md.
+  integration_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  crypto: ^3.0.7
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  assets:
+    # These two live under images/Logo/ — fixed here (the previous entries
+    # pointed at a non-existent path and were failing the asset bundle
+    # build under `flutter test`) rather than left broken, since the office
+    # logo fallback added below depends on teresa-rizal-seal.png actually
+    # resolving.
+    # Welcome photographs and the shared orb. Flutter draws the seal.
+    #
+    # Listed one by one rather than as a `welcome/` directory, which Flutter
+    # would accept: `reachability_test.dart` checks that every declared asset
+    # is a real file on disk, and a directory entry fails that check. Naming
+    # each plate keeps the gate strict in both directions.
+    - assets/images/welcome/page_1_bg.jpg
+    - assets/images/welcome/page_2_bg.jpg
+    - assets/images/welcome/page_3_bg.jpg
+    - assets/images/welcome/welcome_hero_orb.png
+    # Home carousel frames, 1672×941, order 01 → 02 → 03. Listed one by
+    # one so reachability_test can confirm each file exists.
+    - assets/images/banners/home_banner_01.png
+    - assets/images/banners/home_banner_02.png
+    - assets/images/banners/home_banner_03.png
+    - assets/images/Logo/teresa-rizal-seal.png
+    - assets/images/Logo/labangtaytay-seal.png
+    - assets/images/teresa-rizal-aerial.jpg
+    # Synthetic Balita still. Generated van, no people and no real plate.
+    - assets/images/balita/lgu_ambulance.png
+    # Pack C Balita detail hero. Listed one by one so reachability_test
+    # can confirm the file exists.
+    - assets/images/balita/lgu-ambulance.jpg
+    # The three flattened Welcome Screen composites were retired on
+    # 2026-08-30 when onboarding was rebuilt from native layers. Nothing in
+    # lib/ or test/ references them (verified repo-wide), so they are no
+    # longer bundled — about 4.5 MB that used to ship in every binary.
+    #
+    # The FILES are deliberately still on disk as design references. Deleting
+    # them is a separate, owner-level call; undeclaring them is what stops
+    # them shipping, and is reversible.
+    - assets/images/Perlita Profile.png
+    - assets/images/PERLITA DEMO ID.png
+    - assets/images/Nicanor Sarmiento.png
+    - assets/images/NICANOR ID DEMO.png
+    - assets/images/Anacleto Dimaculangan.png
+    - assets/images/ANACLETO ID DEMO.png
+    - assets/images/gcash_logo.svg
+    - assets/images/Maya_logo.svg.webp
+    - assets/images/BarangayID_Front.png
+    - assets/images/BarangayID_Back.png
+    - assets/images/PWD_Front.png
+    - assets/images/PWD_Back.png
+    - assets/images/Logo/BPLO-removebg-preview.png
+    - assets/images/Logo/logo-peso-removebg-preview.png
+    - assets/images/Logo/mswd-logo-removebg-preview.png
+    - assets/images/Logo/NDRRMO-removebg-preview.png
+    - assets/images/Logo/OSCA-removebg-preview.png
+    - assets/images/Logo/PDAO-removebg-preview.png
+
+  # Inter and Lora are bundled as variable fonts (single file, multiple
+  # weight entries), matching resources/css/app.css in the Web Admin, which
+  # pulls the same two families from Google Fonts (--font-sans / --font-display).
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+        - asset: assets/fonts/Inter-Italic.ttf
+          style: italic
+    # Static Inter SemiBold. The variable file's wght axis does not move the
+    # welcome headlines in this engine (they were drawing Regular). This
+    # instance is wght 600, opsz 32, and is only used by those headlines.
+    - family: InterSemi
+      fonts:
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora.ttf
+        - asset: assets/fonts/Lora-Italic.ttf
+          style: italic

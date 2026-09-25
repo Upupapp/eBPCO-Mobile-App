@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ (API 31) replaced the old windowBackground splash with the
+         system SplashScreen API. Without this block the platform derives a
+         splash from the launcher icon and draws the adaptive icon's FOREGROUND
+         only, so the seal lost its white plate and its black outer ring sank
+         into the navy window.
+
+         Naming the full adaptive icon (@mipmap/ic_launcher) as the splash icon
+         puts the white-backed seal on the navy window — the same mark the
+         launcher shows, which is what makes the cold start look deliberate
+         rather than like a default.
+
+         Only LaunchTheme is overridden here; NormalTheme is inherited from
+         values/styles.xml, and Flutter swaps to it once the engine is up. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/teresa_rizal_navy_900</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>

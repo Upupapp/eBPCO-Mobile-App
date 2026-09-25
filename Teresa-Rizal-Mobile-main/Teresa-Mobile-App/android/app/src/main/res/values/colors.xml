@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppColors.navy900 (#0B1730) — the colour SplashScreen paints as its
+         own background. The OS draws the launch window before Flutter's first
+         frame, so if the two disagree the citizen sees a flash of the wrong
+         colour on every cold start. Keep this in step with
+         lib/theme/app_colors.dart. -->
+    <color name="teresa_rizal_navy_900">#FF0B1730</color>
+	<color name="ic_launcher_background">#FFFFFF</color>
+</resources>
