@@ -250,6 +250,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       setState(() {
         _attachedDocIds[doc.code] = documentId;
         _attachedFileNames[doc.code] = picked.name;
+        // A "(N missing)" count from before this upload is now wrong.
+        _error = null;
       });
     } on ApiError catch (e) {
       if (!mounted) return;

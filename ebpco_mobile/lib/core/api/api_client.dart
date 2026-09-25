@@ -25,8 +25,10 @@ class ApiClient {
   final http.Client _http = http.Client();
   final _uuid = const Uuid();
 
-  Future<Map<String, String>> _headers({required bool auth}) async {
-    final headers = {'Content-Type': 'application/json'};
+  /// `Content-Type` only when a JSON body is sent: the server refuses a
+  /// JSON-labelled request with an empty body (a bare DELETE included).
+  Future<Map<String, String>> _headers({required bool auth, bool json = false}) async {
+    final headers = <String, String>{if (json) 'Content-Type': 'application/json'};
     if (auth) {
       // Proactive refresh before the call, not reactive-after-401: the
       // Documents step of the wizard can be mid-upload for several
@@ -122,9 +124,9 @@ class ApiClient {
 
   Future<T> post<T>(String path, {Map<String, dynamic>? body, bool auth = true, String? idempotencyKey}) async {
     try {
-      final headers = await _headers(auth: auth);
+      final headers = await _headers(auth: auth, json: true);
       if (idempotencyKey != null) headers['Idempotency-Key'] = idempotencyKey;
-      final response = await _http.post(_uri(path), headers: headers, body: body == null ? null : jsonEncode(body));
+      final response = await _http.post(_uri(path), headers: headers, body: jsonEncode(body ?? const <String, dynamic>{}));
       return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
@@ -133,7 +135,7 @@ class ApiClient {
 
   Future<T> patch<T>(String path, {Map<String, dynamic>? body, bool auth = true}) async {
     try {
-      final response = await _http.patch(_uri(path), headers: await _headers(auth: auth), body: body == null ? null : jsonEncode(body));
+      final response = await _http.patch(_uri(path), headers: await _headers(auth: auth, json: true), body: jsonEncode(body ?? const <String, dynamic>{}));
       return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
@@ -142,7 +144,7 @@ class ApiClient {
 
   Future<T> put<T>(String path, {Map<String, dynamic>? body, bool auth = true}) async {
     try {
-      final response = await _http.put(_uri(path), headers: await _headers(auth: auth), body: body == null ? null : jsonEncode(body));
+      final response = await _http.put(_uri(path), headers: await _headers(auth: auth, json: true), body: jsonEncode(body ?? const <String, dynamic>{}));
       return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
