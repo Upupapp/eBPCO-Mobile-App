@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/soft_widget.dart';
 import 'nav/soft_nav_motion.dart';
@@ -166,22 +167,21 @@ class SoftCircleButton extends StatelessWidget {
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            Material(
-              color: SoftColors.clear,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: onPressed,
-                child: Ink(
-                  width: diameter,
-                  height: diameter,
-                  decoration: const BoxDecoration(
-                    color: SoftColors.white,
-                    shape: BoxShape.circle,
-                    border: Border.fromBorderSide(BorderSide(color: SoftColors.line)),
-                    boxShadow: SoftShadows.cardSm,
+            // Shadow sits outside the Material: an Ink decoration's shadow is
+            // clipped to its square bounds and shows as a grey box.
+            DecoratedBox(
+              decoration: const BoxDecoration(shape: BoxShape.circle, boxShadow: SoftShadows.cardSm),
+              child: Material(
+                color: SoftColors.white,
+                shape: const CircleBorder(side: BorderSide(color: SoftColors.line)),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onPressed,
+                  child: SizedBox(
+                    width: diameter,
+                    height: diameter,
+                    child: Icon(icon, size: 18, color: SoftColors.ink),
                   ),
-                  child: Icon(icon, size: 18, color: SoftColors.ink),
                 ),
               ),
             ),
@@ -221,18 +221,21 @@ class SoftWash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: SoftColors.page),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -1.1),
-            radius: 1.05,
-            colors: [SoftColors.headerGlow, SoftColors.headerGlowClear],
-            stops: [0, 0.7],
+        decoration: const BoxDecoration(color: SoftColors.page),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -1.1),
+              radius: 1.05,
+              colors: [SoftColors.headerGlow, SoftColors.headerGlowClear],
+              stops: [0, 0.7],
+            ),
           ),
+          child: child,
         ),
-        child: child,
       ),
     );
   }

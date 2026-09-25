@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/session_service.dart';
@@ -33,52 +34,66 @@ class _SplashScreenState extends State<SplashScreen> {
     final Widget next = session.isSignedIn
         ? const RootShell()
         : onboardingDone
-            ? const LoginScreen()
-            : const OnboardingScreen();
+        ? const LoginScreen()
+        : const OnboardingScreen();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (_, _, _) => next,
         transitionDuration: const Duration(milliseconds: 380),
-        transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: SoftColors.primaryDeep,
-      body: Stack(
-        children: [
-          Center(
-            child: Container(
-              width: 196,
-              height: 196,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: SoftColors.white, width: 4),
-              ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: SoftColors.primaryDeep,
+        body: Stack(
+          children: [
+            Center(
               child: Container(
-                padding: const EdgeInsets.all(8),
+                width: 196,
+                height: 196,
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: SoftColors.white,
-                  border: Border.all(color: SoftColors.gold, width: 5),
+                  border: Border.all(color: SoftColors.white, width: 4),
                 ),
-                child: Image.asset('assets/images/ebpco_seal.png', fit: BoxFit.contain),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: SoftColors.white,
+                    border: Border.all(color: SoftColors.gold, width: 5),
+                  ),
+                  child: Image.asset(
+                    'assets/images/ebpco_seal.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ),
             ),
-          ),
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 64,
-            child: Center(
-              child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2, color: SoftColors.white)),
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 64,
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: SoftColors.white,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

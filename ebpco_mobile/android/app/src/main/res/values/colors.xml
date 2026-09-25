@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- SoftColors.primaryDeep (#A5182A): the splash screen's background.
+         The OS draws the launch window before Flutter's first frame, so it
+         must match or every cold start flashes the wrong colour. -->
+    <color name="ebpco_primary_600">#FFA5182A</color>
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

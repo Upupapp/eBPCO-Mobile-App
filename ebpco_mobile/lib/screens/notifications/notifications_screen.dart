@@ -29,17 +29,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return SoftPageScaffold(
       title: 'Notifications',
+      underNav: true,
       body: RefreshIndicator(
         onRefresh: () => context.read<NotificationsService>().refresh(),
         child: notifications.loading && notifications.items.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : notifications.items.isEmpty
                 ? ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-                    children: const [SoftEmptyCard("You're all caught up.")],
+                    padding: EdgeInsets.fromLTRB(20, 12, 20, SoftPageScaffold.navClearance(context)),
+                    children: [SoftEmptyCard(notifications.error ?? "You're all caught up.")],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                    padding: EdgeInsets.fromLTRB(20, 12, 20, SoftPageScaffold.navClearance(context)),
                     itemCount: notifications.items.length,
                     itemBuilder: (context, i) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),

@@ -8,6 +8,7 @@ import '../../services/session_service.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
+import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/business_list_screen.dart';
@@ -54,10 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return SoftWash(
       child: SafeArea(
+        bottom: false,
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, SoftPageScaffold.navClearance(context)),
             children: [
               Row(
                 children: [
@@ -145,7 +147,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               if (apps.loading && apps.applications.isEmpty)
                 const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
               else if (active.isEmpty)
-                const SoftEmptyCard('No active applications yet. Start one from Services.')
+                SoftEmptyCard(
+                  apps.error != null && apps.applications.isEmpty ? apps.error! : 'No active applications yet. Start one from Services.',
+                )
               else
                 ...active.take(4).map((a) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _ApplicationRow(application: a))),
             ],

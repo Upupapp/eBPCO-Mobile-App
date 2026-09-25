@@ -31,6 +31,7 @@ class BusinessesService extends ChangeNotifier {
 
   void clear() {
     _businesses = [];
+    _error = null;
     notifyListeners();
   }
 }

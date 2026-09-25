@@ -121,6 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return SoftPageScaffold(
       title: 'Profile',
+      underNav: true,
       actions: [
         SoftCircleButton(
           icon: Icons.notifications_none_rounded,
@@ -130,7 +131,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, SoftPageScaffold.navClearance(context)),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,

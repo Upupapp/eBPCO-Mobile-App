@@ -35,6 +35,7 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
 
     return SoftPageScaffold(
       title: 'My Applications',
+      underNav: true,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -59,11 +60,19 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : filtered.isEmpty
                       ? ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-                          children: [SoftEmptyCard(_filter == 'All' ? 'No applications yet. Start one from Services.' : 'No $_filter applications.')],
+                          padding: EdgeInsets.fromLTRB(20, 8, 20, SoftPageScaffold.navClearance(context)),
+                          children: [
+                            SoftEmptyCard(
+                              apps.error != null && apps.applications.isEmpty
+                                  ? apps.error!
+                                  : _filter == 'All'
+                                      ? 'No applications yet. Start one from Services.'
+                                      : 'No $_filter applications.',
+                            ),
+                          ],
                         )
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 120),
+                          padding: EdgeInsets.fromLTRB(20, 4, 20, SoftPageScaffold.navClearance(context)),
                           itemCount: filtered.length,
                           itemBuilder: (context, i) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),

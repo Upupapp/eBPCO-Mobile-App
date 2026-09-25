@@ -10,20 +10,25 @@ class NotificationsService extends ChangeNotifier {
   final _api = CitizenApi.instance;
 
   bool _loading = false;
+  String? _error;
   List<NotificationEntry> _items = [];
   int _unresolvedCount = 0;
 
   bool get loading => _loading;
+  String? get error => _error;
   List<NotificationEntry> get items => _items;
   int get unresolvedCount => _unresolvedCount;
 
   Future<void> refresh() async {
     _loading = true;
+    _error = null;
     notifyListeners();
     try {
       final result = await _api.notifications();
       _items = result.data;
       _unresolvedCount = result.unresolvedCount;
+    } catch (e) {
+      _error = 'Could not load your notifications. Pull down to try again.';
     } finally {
       _loading = false;
       notifyListeners();
@@ -41,6 +46,7 @@ class NotificationsService extends ChangeNotifier {
 
   void clear() {
     _items = [];
+    _error = null;
     _unresolvedCount = 0;
     notifyListeners();
   }

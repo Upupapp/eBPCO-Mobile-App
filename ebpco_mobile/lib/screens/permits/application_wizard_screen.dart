@@ -326,7 +326,25 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         ),
         const SizedBox(height: 18),
         _label('Business'),
-        if (active.isEmpty)
+        if (active.isEmpty && businesses.error != null && !businesses.loading)
+          SoftCard(
+            color: SoftColors.pendingCream,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(businesses.error!, style: SoftType.body.copyWith(color: SoftColors.pendingInk)),
+                const SizedBox(height: 10),
+                SoftPillButton(
+                  label: 'Try again',
+                  kind: SoftPillKind.outline,
+                  icon: Icons.refresh_rounded,
+                  onPressed: () => context.read<BusinessesService>().refresh(),
+                ),
+              ],
+            ),
+          )
+        else if (active.isEmpty)
           SoftCard(
             color: SoftColors.primaryWash,
             padding: const EdgeInsets.all(16),
@@ -364,15 +382,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           ),
         const SizedBox(height: 18),
         _label('Application Type'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Row(
           children: [
-            for (final v in const ['New', 'Renewal', 'Amendment'])
-              SizedBox(
-                height: 40,
-                child: SoftFilterChip(label: v, selected: _applicationAction == v, onTap: () => setState(() => _applicationAction = v)),
+            for (final (i, v) in const ['New', 'Renewal', 'Amendment'].indexed) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: SoftFilterChip(label: v, selected: _applicationAction == v, onTap: () => setState(() => _applicationAction = v)),
+                ),
               ),
+            ],
           ],
         ),
         if (_needsPriorPermitClaim) ...[

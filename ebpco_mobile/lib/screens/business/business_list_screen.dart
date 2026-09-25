@@ -40,7 +40,21 @@ class _BusinessListScreenState extends State<BusinessListScreen> {
         onRefresh: () => context.read<BusinessesService>().refresh(),
         child: businesses.loading && businesses.businesses.isEmpty
             ? const Center(child: CircularProgressIndicator())
-            : businesses.businesses.isEmpty
+            : businesses.businesses.isEmpty && businesses.error != null
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    children: [
+                      SoftEmptyCard(businesses.error!),
+                      const SizedBox(height: 16),
+                      SoftPillButton(
+                        label: 'Try again',
+                        kind: SoftPillKind.outline,
+                        icon: Icons.refresh_rounded,
+                        onPressed: () => context.read<BusinessesService>().refresh(),
+                      ),
+                    ],
+                  )
+                : businesses.businesses.isEmpty
                 ? ListView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     children: [

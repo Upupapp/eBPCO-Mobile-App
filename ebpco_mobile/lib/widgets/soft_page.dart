@@ -13,7 +13,21 @@ class SoftPageScaffold extends StatelessWidget {
   final List<Widget> actions;
   final bool showBack;
 
-  const SoftPageScaffold({super.key, required this.title, required this.body, this.actions = const [], this.showBack = true});
+  /// A root-shell tab: the body runs behind the floating nav instead of
+  /// stopping above it, so lists pad with [SoftPageScaffold.navClearance].
+  final bool underNav;
+
+  const SoftPageScaffold({
+    super.key,
+    required this.title,
+    required this.body,
+    this.actions = const [],
+    this.showBack = true,
+    this.underNav = false,
+  });
+
+  /// Bottom list padding that clears the floating nav and system inset.
+  static double navClearance(BuildContext context) => MediaQuery.paddingOf(context).bottom + 24;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +36,7 @@ class SoftPageScaffold extends StatelessWidget {
       child: Scaffold(
         backgroundColor: SoftColors.clear,
         body: SafeArea(
+          bottom: !underNav,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

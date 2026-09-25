@@ -45,8 +45,12 @@ class _PaymentsListScreenState extends State<PaymentsListScreen> {
             : rows.isEmpty
                 ? ListView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    children: const [
-                      SoftEmptyCard('No assessments issued yet. Once your application is evaluated, its Order of Payment will appear here.'),
+                    children: [
+                      SoftEmptyCard(
+                        apps.error != null && apps.applications.isEmpty
+                            ? apps.error!
+                            : 'No assessments issued yet. Once your application is evaluated, its Order of Payment will appear here.',
+                      ),
                     ],
                   )
                 : ListView.builder(
