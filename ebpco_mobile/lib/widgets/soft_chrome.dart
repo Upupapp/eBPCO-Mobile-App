@@ -310,7 +310,12 @@ class SoftPickerField extends StatelessWidget {
       borderRadius: BorderRadius.circular(SoftRadius.pill),
       child: InkWell(
         borderRadius: BorderRadius.circular(SoftRadius.pill),
-        onTap: onTap,
+        onTap: () {
+          // Otherwise the last text field regains focus when the picker
+          // closes and the keyboard pops back over the form.
+          FocusScope.of(context).unfocus();
+          onTap();
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(

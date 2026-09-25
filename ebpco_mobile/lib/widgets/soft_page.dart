@@ -31,7 +31,9 @@ class SoftPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPop = showBack && Navigator.of(context).canPop();
+    // A tab is a root page: canPop() can read true while a pushed page is on
+    // top of it, and the stale arrow then survives the pop.
+    final canPop = showBack && !underNav && Navigator.of(context).canPop();
     return SoftWash(
       child: Scaffold(
         backgroundColor: SoftColors.clear,
@@ -42,7 +44,11 @@ class SoftPageScaffold extends StatelessWidget {
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(canPop ? 10 : 22, 8, 12, 4),
-                child: Row(
+                child: ConstrainedBox(
+                  // Same bar height with or without a round button in it, so a
+                  // title never jumps when an action appears or goes away.
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Row(
                   children: [
                     if (canPop) ...[
                       SoftCircleButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => Navigator.of(context).maybePop()),
@@ -53,6 +59,7 @@ class SoftPageScaffold extends StatelessWidget {
                     ),
                     ...actions,
                   ],
+                ),
                 ),
               ),
               Expanded(child: body),

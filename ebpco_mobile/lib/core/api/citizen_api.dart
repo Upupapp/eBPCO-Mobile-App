@@ -213,6 +213,24 @@ class CitizenApi {
         await _client.post<Map<String, dynamic>>('/applications/$applicationId/submit', idempotencyKey: _client.newIdempotencyKey()),
       );
 
+  /// `POST /applications/{id}/documents/{documentId}/resubmit` — replaces a
+  /// document the office rejected or asked to revise. Returns what metadata
+  /// the server stripped (EXIF/GPS), which the citizen is shown.
+  Future<List<String>> resubmitDocument({
+    required String applicationId,
+    required String documentId,
+    required String fileName,
+    required String label,
+    required String contentBase64,
+  }) async {
+    final body = await _client.post<Map<String, dynamic>>(
+      '/applications/$applicationId/documents/$documentId/resubmit',
+      idempotencyKey: _client.newIdempotencyKey(),
+      body: {'fileName': fileName, 'label': label, 'contentBase64': contentBase64},
+    );
+    return ((body['removedMetadata'] as List<dynamic>?) ?? const []).cast<String>();
+  }
+
   Future<void> cancelApplication(String applicationId, {String? reason}) => _client.post(
         '/applications/$applicationId/cancel',
         idempotencyKey: _client.newIdempotencyKey(),

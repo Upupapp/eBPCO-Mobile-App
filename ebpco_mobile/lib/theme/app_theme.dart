@@ -21,6 +21,9 @@ class AppTheme {
     final base = ThemeData(useMaterial3: true, brightness: Brightness.light, fontFamily: SoftType.family);
     return base.copyWith(
       scaffoldBackgroundColor: SoftColors.page,
+      // Dropdown menus paint on canvasColor, which `base` derived from the
+      // default M3 scheme (a lavender tint) before the red scheme below.
+      canvasColor: SoftColors.white,
       colorScheme: base.colorScheme.copyWith(
         primary: SoftColors.primary,
         onPrimary: Colors.white,
@@ -116,6 +119,12 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(SoftRadius.lg)),
         titleTextStyle: SoftType.section.copyWith(fontSize: 18, fontWeight: FontWeight.w600),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: SoftColors.white,
+        surfaceTintColor: Colors.transparent,
+        headerForegroundColor: SoftColors.ink,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(SoftRadius.lg)),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: SoftColors.white,

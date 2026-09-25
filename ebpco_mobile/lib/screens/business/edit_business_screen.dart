@@ -6,6 +6,7 @@ import '../../core/api/problem.dart';
 import '../../domain/business_categories.dart';
 import '../../domain/castilla.dart';
 import '../../domain/models.dart';
+import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
@@ -50,7 +51,7 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
 
   Future<void> _save() async {
     if (_name.text.trim().isEmpty || _street.text.trim().isEmpty || _barangay == null) {
-      setState(() => _error = 'Fill in every field.');
+      setState(() => _error = 'Please complete every required field.');
       return;
     }
     setState(() {
@@ -70,6 +71,19 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
       if (!mounted) return;
       await context.read<BusinessesService>().refresh();
       if (!mounted) return;
+      // Says what did NOT move, like the portal: filed applications keep the
+      // details they were filed with.
+      const closed = {'Draft', 'Released', 'Completed', 'Rejected', 'Cancelled', 'Expired'};
+      final openApplications = context
+          .read<ApplicationsService>()
+          .applications
+          .where((a) => a.businessId == widget.business.id && !closed.contains(a.lifecycleStatus))
+          .length;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(openApplications > 0
+            ? 'Business details updated. Applications already filed are unchanged.'
+            : 'Business details updated.'),
+      ));
       Navigator.of(context).pop();
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);

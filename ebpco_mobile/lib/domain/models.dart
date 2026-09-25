@@ -198,7 +198,14 @@ class DocumentEntry {
   final bool quarantined;
   final String? applicationId;
   final String? applicationReference;
+
+  /// The officer's verdict. Null means nobody has looked yet — not "fine".
   final String? reviewStatus;
+  final String? reviewReasonLabel;
+  final String? reviewRemark;
+  final String? supersedesDocumentId;
+  final String? supersededByDocumentId;
+  final String? expiresOn;
 
   const DocumentEntry({
     required this.id,
@@ -212,6 +219,11 @@ class DocumentEntry {
     required this.applicationId,
     required this.applicationReference,
     required this.reviewStatus,
+    this.reviewReasonLabel,
+    this.reviewRemark,
+    this.supersedesDocumentId,
+    this.supersededByDocumentId,
+    this.expiresOn,
   });
 
   factory DocumentEntry.fromJson(Map<String, dynamic> json) => DocumentEntry(
@@ -226,7 +238,46 @@ class DocumentEntry {
         applicationId: json['applicationId'] as String?,
         applicationReference: json['applicationReference'] as String?,
         reviewStatus: json['reviewStatus'] as String?,
+        reviewReasonLabel: (json['reviewReason'] as Map<String, dynamic>?)?['label'] as String?,
+        reviewRemark: json['reviewRemark'] as String?,
+        supersedesDocumentId: json['supersedesDocumentId'] as String?,
+        supersededByDocumentId: json['supersededByDocumentId'] as String?,
+        expiresOn: json['expiresOn'] as String?,
       );
+
+  /// The portal's `rejectionExplanation`: cited reason and remark together.
+  String? get explanation {
+    final parts = [reviewReasonLabel, reviewRemark].whereType<String>().where((p) => p.trim().isNotEmpty).toList();
+    return parts.isEmpty ? null : parts.join(' — ');
+  }
+
+  /// The portal's `canResubmit`: the newest version, and the office asked.
+  bool get canReplace =>
+      supersededByDocumentId == null && (reviewStatus == 'Rejected' || reviewStatus == 'Revision Required');
+}
+
+/// The portal's `groupDocumentChains`: each current document with the
+/// earlier versions it replaced, newest first.
+List<({DocumentEntry current, List<DocumentEntry> superseded})> groupDocumentChains(List<DocumentEntry> docs) {
+  final byId = {for (final d in docs) d.id: d};
+  final chains = <({DocumentEntry current, List<DocumentEntry> superseded})>[];
+  for (final head in docs.where((d) => d.supersededByDocumentId == null)) {
+    final superseded = <DocumentEntry>[];
+    final seen = {head.id};
+    var cursor = head.supersedesDocumentId;
+    while (cursor != null && byId.containsKey(cursor) && !seen.contains(cursor)) {
+      final prev = byId[cursor]!;
+      superseded.add(prev);
+      seen.add(prev.id);
+      cursor = prev.supersedesDocumentId;
+    }
+    chains.add((current: head, superseded: superseded));
+  }
+  final claimed = {for (final c in chains) ...[c.current.id, ...c.superseded.map((s) => s.id)]};
+  for (final orphan in docs.where((d) => !claimed.contains(d.id))) {
+    chains.add((current: orphan, superseded: const []));
+  }
+  return chains;
 }
 
 class PermitRelease {

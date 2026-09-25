@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +18,7 @@ import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import '../documents/document_viewer_screen.dart';
 import '../payments/payment_flow_screen.dart';
+import '../payments/payments_list_screen.dart';
 import '../permits/application_wizard_screen.dart';
 import 'permit_document_screen.dart';
 
@@ -31,9 +36,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   ApplicationSummary? _application;
   List<TimelineEntry> _timeline = [];
   List<DocumentEntry> _documents = [];
+  List<RequirementDoc> _requirements = [];
   bool _loading = true;
   bool _cancelling = false;
   String? _error;
+  String? _busyDocumentKey;
 
   @override
   void initState() {
@@ -49,17 +56,85 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
         _api.getTimeline(widget.applicationId),
         _api.listApplicationDocuments(widget.applicationId),
       ]);
+      List<RequirementDoc> requirements = const [];
+      try {
+        requirements = await _api.applicationRequirements(widget.applicationId);
+      } on ApiError {
+        // The checklist is only used to spot a missing required file; the
+        // rest of the page stands without it.
+      }
       if (!mounted) return;
       setState(() {
         _application = results[0] as ApplicationSummary;
         _timeline = results[1] as List<TimelineEntry>;
         _documents = results[2] as List<DocumentEntry>;
+        _requirements = requirements;
       });
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.citizenMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<({String name, List<int> bytes})?> _pickFile() async {
+    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
+    final picked = result?.files.single;
+    if (picked == null) return null;
+    final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+    if (bytes == null) return null;
+    return (name: picked.name, bytes: bytes);
+  }
+
+  void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+
+  /// The portal's `onReplace`: a new version of a document the office
+  /// rejected or asked to revise. Stripped metadata is reported, not hidden.
+  Future<void> _replace(DocumentEntry doc) async {
+    final file = await _pickFile();
+    if (file == null || !mounted) return;
+    setState(() => _busyDocumentKey = doc.id);
+    try {
+      final removed = await _api.resubmitDocument(
+        applicationId: widget.applicationId,
+        documentId: doc.id,
+        fileName: file.name,
+        label: doc.label,
+        contentBase64: base64Encode(file.bytes),
+      );
+      if (!mounted) return;
+      final stripped = removed.isEmpty ? '' : ' ${removed.join(', ')} was removed from the file.';
+      _toast('Replacement sent for "${doc.label}".$stripped');
+      await _load();
+    } on ApiError catch (e) {
+      if (mounted) _toast(e.citizenMessage);
+    } finally {
+      if (mounted) setState(() => _busyDocumentKey = null);
+    }
+  }
+
+  /// The portal's `attachMissing`: first-time upload for a required document
+  /// nothing has been sent for yet, attached to this application.
+  Future<void> _attachMissing(RequirementDoc req) async {
+    final file = await _pickFile();
+    if (file == null || !mounted) return;
+    setState(() => _busyDocumentKey = req.code);
+    try {
+      await _api.uploadDocument(
+        fileName: file.name,
+        label: req.label,
+        contentBase64: base64Encode(file.bytes),
+        applicationId: widget.applicationId,
+        requirementCode: req.code,
+      );
+      if (!mounted) return;
+      _toast('"${req.label}" sent.');
+      await _load();
+    } on ApiError catch (e) {
+      if (mounted) _toast(e.citizenMessage);
+    } finally {
+      if (mounted) setState(() => _busyDocumentKey = null);
     }
   }
 
@@ -109,6 +184,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       if (mounted) setState(() => _cancelling = false);
     }
   }
+
+  /// Required checklist items the server has no document for at all — a
+  /// rejected one is not missing, it has its own Replace action.
+  List<RequirementDoc> get _missingRequired =>
+      _requirements.where((r) => r.required && r.documentIds.isEmpty).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -259,22 +339,57 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           ),
           const SizedBox(height: 10),
         ],
-        const SizedBox(height: 14),
-        const SoftSectionHeader(title: 'Documents'),
-        if (_documents.isEmpty)
-          const SoftEmptyCard('No documents attached yet.')
-        else
+        if (app.orderOfPayment != null) ...[
+          const SizedBox(height: 14),
+          _AssessmentCard(order: app.orderOfPayment!, paid: app.paymentStatus == 'Paid'),
+        ],
+        if (app.lifecycleStatus != 'Draft' && _missingRequired.isNotEmpty) ...[
+          const SizedBox(height: 14),
           SoftCard(
-            padding: EdgeInsets.zero,
+            color: SoftColors.dangerSoft,
+            padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var i = 0; i < _documents.length; i++) ...[
-                  if (i > 0) const Divider(height: 1, color: SoftColors.line),
-                  _DocumentRow(doc: _documents[i]),
+                Text('Missing Required Documents', style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600, color: SoftColors.danger)),
+                const SizedBox(height: 4),
+                Text('The Municipality still needs these to continue reviewing your application.', style: SoftType.body.copyWith(color: SoftColors.ink)),
+                for (final req in _missingRequired) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: Text(req.label, style: SoftType.tileTitle)),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 128,
+                        child: SoftPillButton(
+                          label: 'Choose File',
+                          busy: _busyDocumentKey == req.code,
+                          onPressed: _busyDocumentKey != null ? null : () => _attachMissing(req),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
           ),
+        ],
+        const SizedBox(height: 24),
+        const SoftSectionHeader(title: 'Documents'),
+        if (_documents.isEmpty)
+          const SoftEmptyCard('No documents attached yet.')
+        else
+          for (final chain in groupDocumentChains(_documents))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _DocumentChainCard(
+                current: chain.current,
+                superseded: chain.superseded,
+                replacing: _busyDocumentKey == chain.current.id,
+                onReplace: _busyDocumentKey != null ? null : () => _replace(chain.current),
+              ),
+            ),
         const SizedBox(height: 24),
         const SoftSectionHeader(title: 'Timeline'),
         if (_timeline.isEmpty)
@@ -325,50 +440,174 @@ class _Cell extends StatelessWidget {
   }
 }
 
-class _DocumentRow extends StatelessWidget {
-  final DocumentEntry doc;
-  const _DocumentRow({required this.doc});
+/// The portal's `app-application-documents`, one document chain per card:
+/// the office's verdict (null is "Not yet reviewed", never a tick), the
+/// cited reason, the scanner and validity notes on their own lines, View,
+/// Replace when the office asked for it, and earlier versions kept visible.
+class _DocumentChainCard extends StatefulWidget {
+  final DocumentEntry current;
+  final List<DocumentEntry> superseded;
+  final bool replacing;
+  final VoidCallback? onReplace;
+  const _DocumentChainCard({required this.current, required this.superseded, required this.replacing, required this.onReplace});
+
+  @override
+  State<_DocumentChainCard> createState() => _DocumentChainCardState();
+}
+
+class _DocumentChainCardState extends State<_DocumentChainCard> {
+  bool _showHistory = false;
+
+  static const _expiryWarningDays = 60;
+
+  /// The portal's `documentValidity`, in whole UTC days.
+  (String, bool)? _validity(String? expiresOn) {
+    if (expiresOn == null) return null;
+    final due = DateTime.tryParse(expiresOn);
+    if (due == null) return null;
+    final today = DateTime.now().toUtc();
+    final days = DateTime.utc(due.year, due.month, due.day).difference(DateTime.utc(today.year, today.month, today.day)).inDays;
+    final on = expiresOn.length >= 10 ? expiresOn.substring(0, 10) : expiresOn;
+    if (days < 0) {
+      final ago = -days;
+      return ('This document expired on $on ($ago ${ago == 1 ? 'day' : 'days'} ago). The Municipality is likely to ask for a current one.', true);
+    }
+    if (days <= _expiryWarningDays) {
+      return ('Valid until $on — ${days == 0 ? 'the last day' : '$days ${days == 1 ? 'day' : 'days'} left'}.', false);
+    }
+    return ('Valid until $on.', false);
+  }
+
+  void _view(DocumentEntry doc) => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => DocumentViewerScreen(documentId: doc.id, title: doc.label)));
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) =>
-              DocumentViewerScreen(documentId: doc.id, title: doc.label),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            const SoftIconTile(
-              icon: Icons.insert_drive_file_outlined,
-              size: 40,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(doc.label, style: SoftType.tileTitle),
-                  const SizedBox(height: 2),
-                  Text(
-                    doc.fileName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SoftType.tileSub,
-                  ),
-                ],
+    final doc = widget.current;
+    final why = doc.explanation;
+    final validity = _validity(doc.expiresOn);
+    Widget note(String text, {bool danger = false}) => Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(text, style: SoftType.cellLabel.copyWith(fontSize: 13, color: danger ? SoftColors.danger : SoftColors.muted)),
+        );
+
+    return SoftCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SoftIconTile(icon: Icons.insert_drive_file_outlined, size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(doc.label, style: SoftType.tileTitle),
+                    const SizedBox(height: 2),
+                    Text(doc.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.tileSub),
+                    const SizedBox(height: 8),
+                    StatusBadge(label: doc.reviewStatus ?? 'Not yet reviewed'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (doc.quarantined)
+            note('This file was held by the virus scanner and has not been reviewed. It is not a decision about your application.', danger: true)
+          else if (!doc.scanCleared)
+            note('Being checked for viruses.'),
+          if (why != null) note('Why: $why', danger: true),
+          if (validity != null) note(validity.$1, danger: validity.$2),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: SoftPillButton(label: 'View', kind: SoftPillKind.outline, icon: Icons.visibility_outlined, onPressed: () => _view(doc))),
+              if (doc.canReplace) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SoftPillButton(label: 'Replace', icon: Icons.upload_file_rounded, busy: widget.replacing, onPressed: widget.onReplace),
+                ),
+              ],
+            ],
+          ),
+          if (widget.superseded.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => setState(() => _showHistory = !_showHistory),
+              child: Text(
+                '${_showHistory ? 'Hide' : 'Show'} ${widget.superseded.length} earlier version${widget.superseded.length == 1 ? '' : 's'}',
               ),
             ),
-            if (doc.reviewStatus != null) ...[
-              const SizedBox(width: 8),
-              Flexible(child: StatusBadge(label: doc.reviewStatus!)),
-            ],
-            const Icon(Icons.chevron_right_rounded, color: SoftColors.chevron),
+            if (_showHistory)
+              for (final old in widget.superseded)
+                InkWell(
+                  onTap: () => _view(old),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${old.fileName} — ${old.reviewStatus ?? 'Not yet reviewed'}', style: SoftType.cellValue.copyWith(fontSize: 13)),
+                        if (old.explanation != null)
+                          Text('Why: ${old.explanation}', style: SoftType.cellLabel.copyWith(color: SoftColors.danger)),
+                      ],
+                    ),
+                  ),
+                ),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Order of Payment's own lines — the portal's assessment card.
+class _AssessmentCard extends StatelessWidget {
+  final OrderOfPayment order;
+  final bool paid;
+  const _AssessmentCard({required this.order, required this.paid});
+
+  static const _lines = [
+    ('filing', 'Filing Fee'),
+    ('processing', 'Processing Fee'),
+    ('architectural', 'Architectural Fee'),
+    ('structural', 'Structural Fee'),
+    ('electrical', 'Electrical Fee'),
+    ('others', 'Other Fees'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(String label, String value, {bool bold = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Expanded(child: Text(label, style: bold ? SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600) : SoftType.body)),
+              Text(value, style: SoftType.cellValue.copyWith(fontWeight: bold ? FontWeight.w600 : FontWeight.w500)),
+            ],
+          ),
+        );
+    return SoftCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Order of Payment', style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(
+            'No. ${order.number}${order.dueDate != null ? ' · Due ${order.dueDate!.substring(0, 10)}' : ''}',
+            style: SoftType.cellLabel.copyWith(fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          for (final line in _lines)
+            if ((order.fees[line.$1] ?? 0) > 0) row(line.$2, pesos(order.fees[line.$1]!)),
+          const Divider(height: 16, color: SoftColors.line),
+          row('Total', pesos(order.totalCentavos), bold: true),
+          row('Balance', pesos(paid ? 0 : order.totalCentavos)),
+        ],
       ),
     );
   }

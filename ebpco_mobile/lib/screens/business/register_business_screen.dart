@@ -38,7 +38,7 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
 
   Future<void> _submit() async {
     if (_name.text.trim().isEmpty || _street.text.trim().isEmpty || _barangay == null || _registrationNumber.text.trim().isEmpty || _dateRegistered == null) {
-      setState(() => _error = 'Fill in every field.');
+      setState(() => _error = 'Please complete all required fields.');
       return;
     }
     setState(() {
@@ -59,6 +59,7 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
       if (!mounted) return;
       await context.read<BusinessesService>().refresh();
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_name.text.trim()} registered with the Municipality.')));
       Navigator.of(context).pop();
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);

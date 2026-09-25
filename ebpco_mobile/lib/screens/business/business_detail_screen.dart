@@ -32,6 +32,10 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
       }
       if (!mounted) return;
       await context.read<BusinessesService>().refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(business.isActive ? 'Business deactivated. Reactivate it any time from this page.' : 'Business reactivated.'),
+      ));
     } on ApiError catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
