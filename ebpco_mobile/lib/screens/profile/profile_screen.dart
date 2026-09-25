@@ -114,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<SessionService>().profile;
-    final unread = context.watch<NotificationsService>().unresolvedCount;
+    final unread = context.watch<NotificationsService>().unreadCount;
     final verified = profile?.emailVerifiedAt != null;
     final barangay = profile?.barangay;
     final mobile = profile?.mobileNumber;

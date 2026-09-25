@@ -78,6 +78,7 @@ class SoftPillButton extends StatelessWidget {
   final SoftPillKind kind;
   final bool busy;
   final IconData? icon;
+  final bool iconTrailing;
 
   const SoftPillButton({
     super.key,
@@ -86,6 +87,7 @@ class SoftPillButton extends StatelessWidget {
     this.kind = SoftPillKind.primary,
     this.busy = false,
     this.icon,
+    this.iconTrailing = false,
   });
 
   @override
@@ -122,10 +124,11 @@ class SoftPillButton extends StatelessWidget {
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (icon != null) ...[Icon(icon, size: 18, color: foreground), const SizedBox(width: 8)],
+                    if (icon != null && !iconTrailing) ...[Icon(icon, size: 18, color: foreground), const SizedBox(width: 8)],
                     Flexible(
                       child: Text(label, textAlign: TextAlign.center, style: SoftType.button.copyWith(color: foreground)),
                     ),
+                    if (icon != null && iconTrailing) ...[const SizedBox(width: 6), Icon(icon, size: 20, color: foreground)],
                   ],
                 ),
         ),

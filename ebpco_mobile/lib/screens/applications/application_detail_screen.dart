@@ -121,7 +121,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
       children: [
-        StatusBadge(label: app.applicantStatus),
+        Align(alignment: Alignment.centerLeft, child: StatusBadge(label: app.applicantStatus)),
         const SizedBox(height: 12),
         Text(app.permitType, style: SoftType.h1),
         const SizedBox(height: 4),

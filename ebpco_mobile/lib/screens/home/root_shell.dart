@@ -86,7 +86,7 @@ class _RootShellState extends State<RootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final unread = context.watch<NotificationsService>().unresolvedCount;
+    final unread = context.watch<NotificationsService>().unreadCount;
     return Scaffold(
       backgroundColor: SoftColors.page,
       extendBody: true,

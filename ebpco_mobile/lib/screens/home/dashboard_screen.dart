@@ -47,7 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final session = context.watch<SessionService>();
     final apps = context.watch<ApplicationsService>();
-    final unread = context.watch<NotificationsService>().unresolvedCount;
+    final unread = context.watch<NotificationsService>().unreadCount;
     final profile = session.profile;
     final firstName = profile?.firstName ?? '';
     final initials = [profile?.firstName, profile?.lastName].where((s) => s != null && s.isNotEmpty).map((s) => s![0]).join().toUpperCase();

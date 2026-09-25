@@ -111,14 +111,10 @@ class _Row extends StatelessWidget {
                 Text(application.permitType, style: SoftType.tileTitle.copyWith(fontSize: 16)),
                 const SizedBox(height: 2),
                 Text(application.referenceNumber, style: SoftType.tileSub),
+                const SizedBox(height: 2),
+                Text(date, style: SoftType.cellLabel),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Flexible(child: StatusBadge(label: application.applicantStatus)),
-                    const SizedBox(width: 10),
-                    Text(date, style: SoftType.cellLabel),
-                  ],
-                ),
+                StatusBadge(label: application.applicantStatus),
               ],
             ),
           ),

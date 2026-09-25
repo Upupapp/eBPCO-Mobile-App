@@ -146,6 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: SoftPillButton(
                       label: _isLast ? 'Get started' : 'Next',
                       icon: _isLast ? null : Icons.chevron_right_rounded,
+                      iconTrailing: true,
                       onPressed: _next,
                     ),
                   ),
