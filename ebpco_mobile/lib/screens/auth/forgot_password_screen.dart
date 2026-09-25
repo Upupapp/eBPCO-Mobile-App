@@ -28,7 +28,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _submit() async {
-    if (_emailController.text.trim().isEmpty) return;
+    if (_emailController.text.trim().isEmpty) {
+      setState(() => _error = 'Please enter your email address.');
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -52,11 +55,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
         children: _sent
             ? [
-                const SoftIconTile(
-                  icon: Icons.mark_email_read_outlined,
-                  background: SoftColors.verifiedSoft,
-                  foreground: SoftColors.verifiedInk,
-                  size: 64,
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SoftIconTile(
+                    icon: Icons.mark_email_read_outlined,
+                    background: SoftColors.verifiedSoft,
+                    foreground: SoftColors.verifiedInk,
+                    size: 64,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text('Check your email', style: SoftType.hero.copyWith(fontSize: 30)),

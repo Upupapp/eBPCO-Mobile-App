@@ -14,6 +14,16 @@ void main() {
   runApp(EbpcoMobileApp());
 }
 
+class _UnfocusOnNavigate extends NavigatorObserver {
+  void _unfocus() => FocusManager.instance.primaryFocus?.unfocus();
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => _unfocus();
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) => _unfocus();
+}
+
 class EbpcoMobileApp extends StatelessWidget {
   EbpcoMobileApp({super.key}) {
     ApiClient.instance.onSessionExpired = _onSessionExpired;
@@ -54,6 +64,9 @@ class EbpcoMobileApp extends StatelessWidget {
         theme: AppTheme.light,
         navigatorKey: _navigatorKey,
         scaffoldMessengerKey: _messengerKey,
+        // Leaving a page never hands the keyboard to the page underneath —
+        // otherwise popping back to Sign in re-opens it over the form.
+        navigatorObservers: [_UnfocusOnNavigate()],
         home: const SplashScreen(),
       ),
     );
