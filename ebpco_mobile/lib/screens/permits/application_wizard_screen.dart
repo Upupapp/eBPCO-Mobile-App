@@ -64,6 +64,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   final Map<String, String> _attachedDocIds =
       {}; // requirementCode -> documentId
   final Map<String, String> _attachedFileNames = {};
+
+  /// Document ids already linked to the draft on the server. Uploads go up
+  /// unattached and are linked on the next save — like the portal — so a
+  /// file replaced before saving is simply never attached, instead of
+  /// sitting on the application beside its replacement.
+  final Set<String> _attachedToServer = {};
   String? _uploadingCode;
 
   bool get _isResuming => widget.draftId != null;
@@ -120,8 +126,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       final reqs = await _api.applicationRequirements(_draftId!);
       for (final r in reqs) {
         if (r.documentIds.isNotEmpty) {
-          _attachedDocIds[r.code] = r.documentIds.first;
+          _attachedDocIds[r.code] = r.documentIds.last;
+          _attachedToServer.addAll(r.documentIds);
         }
+      }
+      try {
+        for (final d in await _api.listApplicationDocuments(_draftId!)) {
+          if (d.requirementCode != null && _attachedDocIds[d.requirementCode] == d.id) {
+            _attachedFileNames[d.requirementCode!] = d.fileName;
+          }
+        }
+      } on ApiError {
+        // Names are a nicety; "Attached" still shows without them.
       }
       if (!mounted) return;
       setState(() => _requirements = reqs);
@@ -243,7 +259,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         fileName: picked.name,
         label: doc.label,
         contentBase64: base64Encode(bytes),
-        applicationId: _draftId,
         requirementCode: doc.code,
       );
       if (!mounted) return;
@@ -266,6 +281,16 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       .where((r) => r.required)
       .every((r) => _attachedDocIds.containsKey(r.code));
 
+  /// Links this wizard's new uploads to the draft (`PATCH` with
+  /// `documentIds`), skipping any already linked.
+  Future<void> _attachPending() async {
+    if (_draftId == null) return;
+    final pending = _attachedDocIds.values.where((id) => !_attachedToServer.contains(id)).toList();
+    if (pending.isEmpty) return;
+    await _api.updateDraft(_draftId!, {'documentIds': pending});
+    _attachedToServer.addAll(pending);
+  }
+
   Future<void> _toStep4() async {
     if (!_requiredDocumentsComplete) {
       final missing = _requirements
@@ -277,13 +302,20 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       );
       return;
     }
-    // Documents already carry applicationId/requirementCode from the upload
-    // in Step 3 — no separate "attach" patch is needed for them, so this
-    // step is just a client-side move, nothing to await.
     setState(() {
+      _busy = true;
       _error = null;
-      _step = 4;
     });
+    try {
+      await _attachPending();
+      if (!mounted) return;
+      setState(() => _step = 4);
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.citizenMessage);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Like the portal's Save & Exit: saves what is on screen now, not only
@@ -321,6 +353,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                   : _prcNumber.text.trim(),
             },
           });
+        } else {
+          await _attachPending();
         }
       } on ApiError catch (e) {
         if (!mounted) return;
@@ -356,6 +390,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _error = null;
     });
     try {
+      await _attachPending();
       await _api.submitDraft(_draftId!);
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
