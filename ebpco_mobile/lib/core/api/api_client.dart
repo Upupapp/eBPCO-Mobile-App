@@ -131,6 +131,15 @@ class ApiClient {
     }
   }
 
+  Future<T> put<T>(String path, {Map<String, dynamic>? body, bool auth = true}) async {
+    try {
+      final response = await _http.put(_uri(path), headers: await _headers(auth: auth), body: body == null ? null : jsonEncode(body));
+      return _handle(response) as T;
+    } on http.ClientException {
+      throw const ApiError(0, null, true);
+    }
+  }
+
   Future<T> delete<T>(String path, {bool auth = true}) async {
     try {
       final response = await _http.delete(_uri(path), headers: await _headers(auth: auth));

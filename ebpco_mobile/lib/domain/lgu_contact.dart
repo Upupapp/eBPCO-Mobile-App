@@ -21,7 +21,17 @@ const municipalEngineer = LguOffice(
   handles: 'Building permits, ancillary permits and certificates of occupancy',
 );
 
+const planningAndDevelopment = LguOffice(
+  name: 'Municipal Planning and Development Office',
+  shortName: 'MPDO',
+  email: 'castillampdo@gmail.com',
+  mobile: null,
+  handles: 'Locational clearance and certificates of zoning compliance',
+);
+
 const municipalHallAddress = 'Castilla Town Hall, Cumadcad, Castilla, Sorsogon';
+
+const inquiryTurnaround = 'Inquiries are answered within 3 working days.';
 
 /// A bank-transfer deposit account, once the Municipality supplies one.
 class BankTransferInfo {

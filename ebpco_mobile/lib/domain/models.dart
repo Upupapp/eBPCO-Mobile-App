@@ -183,6 +183,7 @@ class DocumentEntry {
   final bool scanCleared;
   final bool quarantined;
   final String? applicationId;
+  final String? applicationReference;
   final String? reviewStatus;
 
   const DocumentEntry({
@@ -195,6 +196,7 @@ class DocumentEntry {
     required this.scanCleared,
     required this.quarantined,
     required this.applicationId,
+    required this.applicationReference,
     required this.reviewStatus,
   });
 
@@ -208,8 +210,85 @@ class DocumentEntry {
         scanCleared: json['scanCleared'] as bool? ?? false,
         quarantined: json['quarantined'] as bool? ?? false,
         applicationId: json['applicationId'] as String?,
+        applicationReference: json['applicationReference'] as String?,
         reviewStatus: json['reviewStatus'] as String?,
       );
+}
+
+class PermitRelease {
+  final String status;
+  final String? method;
+  final String? releasedAt;
+
+  const PermitRelease({required this.status, required this.method, required this.releasedAt});
+
+  factory PermitRelease.fromJson(Map<String, dynamic> json) => PermitRelease(
+        status: json['status'] as String,
+        method: json['method'] as String?,
+        releasedAt: json['releasedAt'] as String?,
+      );
+}
+
+class PermitInfo {
+  final String permitNumber;
+  final String issuedDate;
+  final String? scope;
+  final List<String> conditions;
+  final PermitRelease? release;
+
+  const PermitInfo({required this.permitNumber, required this.issuedDate, required this.scope, required this.conditions, required this.release});
+
+  factory PermitInfo.fromJson(Map<String, dynamic> json) {
+    final releaseJson = json['release'] as Map<String, dynamic>?;
+    return PermitInfo(
+      permitNumber: json['permitNumber'] as String,
+      issuedDate: json['issuedDate'] as String,
+      scope: json['scope'] as String?,
+      conditions: (json['conditions'] as List<dynamic>?)?.cast<String>() ?? const [],
+      release: releaseJson == null ? null : PermitRelease.fromJson(releaseJson),
+    );
+  }
+}
+
+class QuietHours {
+  final bool enabled;
+  final String start;
+  final String end;
+  const QuietHours({required this.enabled, required this.start, required this.end});
+
+  factory QuietHours.fromJson(Map<String, dynamic> json) => QuietHours(
+        enabled: json['enabled'] as bool? ?? false,
+        start: json['start'] as String? ?? '22:00',
+        end: json['end'] as String? ?? '07:00',
+      );
+
+  Map<String, dynamic> toJson() => {'enabled': enabled, 'start': start, 'end': end};
+}
+
+const notificationCategories = ['applicationUpdates', 'payments', 'permitStatus', 'documentReminders', 'appointments', 'account'];
+const notificationCategoryLabels = {
+  'applicationUpdates': 'Application updates',
+  'payments': 'Payments',
+  'permitStatus': 'Permit status',
+  'documentReminders': 'Document reminders',
+  'appointments': 'Appointments',
+  'account': 'Account',
+};
+
+class NotificationPreferences {
+  final Map<String, bool> categories;
+  final QuietHours quietHours;
+  const NotificationPreferences({required this.categories, required this.quietHours});
+
+  factory NotificationPreferences.fromJson(Map<String, dynamic> json) {
+    final rawCategories = (json['categories'] as Map<String, dynamic>?) ?? const {};
+    return NotificationPreferences(
+      categories: {for (final c in notificationCategories) c: rawCategories[c] as bool? ?? true},
+      quietHours: QuietHours.fromJson((json['quietHours'] as Map<String, dynamic>?) ?? const {}),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'categories': categories, 'quietHours': quietHours.toJson()};
 }
 
 class NotificationEntry {

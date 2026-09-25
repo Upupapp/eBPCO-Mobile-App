@@ -12,9 +12,13 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/soft_card.dart';
 import '../auth/login_screen.dart';
+import '../documents/my_documents_screen.dart';
 import 'change_password_screen.dart';
 import 'edit_profile_screen.dart';
 import 'export_data_screen.dart';
+import 'help_support_screen.dart';
+import 'legal_screen.dart';
+import 'notification_preferences_screen.dart';
 
 /// The consequences a citizen must see before deleting their account —
 /// same content, same reasoning, as the web portals' delete-account popup
@@ -151,9 +155,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
             ),
             _MenuTile(
+              icon: Icons.folder_outlined,
+              label: 'My Documents',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyDocumentsScreen())),
+            ),
+            _MenuTile(
+              icon: Icons.notifications_none,
+              label: 'Notification Preferences',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationPreferencesScreen())),
+            ),
+            _MenuTile(
               icon: Icons.download_outlined,
               label: 'Export Your Data',
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExportDataScreen())),
+            ),
+            _MenuTile(
+              icon: Icons.help_outline,
+              label: 'Help & Support',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpSupportScreen())),
+            ),
+            _MenuTile(
+              icon: Icons.description_outlined,
+              label: 'Terms & Privacy',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LegalScreen())),
             ),
             const SizedBox(height: AppSpacing.xl),
             SizedBox(

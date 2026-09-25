@@ -157,6 +157,13 @@ class CitizenApi {
     return (body['requirements'] as List<dynamic>).map((e) => RequirementDoc.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// `GET /applications/{id}/permit` — the applicant's own real, issued
+  /// permit. 404 (with a citizen-readable detail) until one has actually
+  /// been generated — that 404 is a real, honest state, not an error to
+  /// hide, so callers should let it surface via [ApiError].
+  Future<PermitInfo> getPermit(String applicationId) async =>
+      PermitInfo.fromJson(await _client.get<Map<String, dynamic>>('/applications/$applicationId/permit'));
+
   /// Files a new application, or a Draft when [saveAsDraft] is true.
   Future<ApplicationSummary> submit({
     required String permitType,
@@ -317,6 +324,22 @@ class CitizenApi {
 
   Future<Map<String, dynamic>> limits() => _client.get<Map<String, dynamic>>('/limits', auth: false);
 
+  /// `GET /documents/me` — every document this citizen has ever uploaded,
+  /// attached or not. A document already doing duty on one application is
+  /// still listed and still reusable on another.
+  Future<List<DocumentEntry>> getMyDocuments() async {
+    final body = await _client.get<List<dynamic>>('/documents/me');
+    return body.map((e) => DocumentEntry.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// A short-lived signed URL, not the bytes.
+  Future<String> getDocumentContent(String documentId) async =>
+      (await _client.get<Map<String, dynamic>>('/documents/$documentId/content'))['url'] as String;
+
+  /// Unattached: a real deletion. Attached: only stops it being offered
+  /// here again — it stays exactly as filed on its application.
+  Future<void> deleteDocument(String documentId) => _client.delete('/documents/$documentId');
+
   // ── Notifications ────────────────────────────────────────────────────
 
   Future<({List<NotificationEntry> data, int unresolvedCount})> notifications() async {
@@ -326,4 +349,14 @@ class CitizenApi {
   }
 
   Future<void> markNotificationRead(String id) => _client.patch('/notifications/$id/read');
+
+  Future<NotificationPreferences> getNotificationPreferences() async =>
+      NotificationPreferences.fromJson(await _client.get<Map<String, dynamic>>('/notification-preferences'));
+
+  /// `PUT /notification-preferences` — replaces the whole set, never a
+  /// partial patch: an absent category would be ambiguous between "leave
+  /// alone" and "unmute", so the server's own route is a PUT and this
+  /// mirrors it exactly.
+  Future<NotificationPreferences> replaceNotificationPreferences(NotificationPreferences prefs) async =>
+      NotificationPreferences.fromJson(await _client.put<Map<String, dynamic>>('/notification-preferences', body: prefs.toJson()));
 }

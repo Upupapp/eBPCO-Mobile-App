@@ -11,6 +11,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/status_badge.dart';
 import '../payments/payment_flow_screen.dart';
 import '../permits/application_wizard_screen.dart';
+import 'permit_document_screen.dart';
 
 class ApplicationDetailScreen extends StatefulWidget {
   final String applicationId;
@@ -160,6 +161,19 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                                       .push(MaterialPageRoute(builder: (_) => PaymentFlowScreen(applicationId: app.id)))
                                       .then((_) => _load()),
                                   child: const Text('Pay Now'),
+                                ),
+                              ),
+                            if (app.applicantStatus == 'Approved' || app.applicantStatus == 'Ready for Release')
+                              Padding(
+                                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                                      builder: (_) => PermitDocumentScreen(applicationId: app.id, applicationReference: app.referenceNumber),
+                                    )),
+                                    child: const Text('View Permit'),
+                                  ),
                                 ),
                               ),
                             if (_canCancel && app.lifecycleStatus != 'Draft') ...[
