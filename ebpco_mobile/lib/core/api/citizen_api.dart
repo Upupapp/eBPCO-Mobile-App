@@ -63,7 +63,12 @@ class CitizenApi {
     final body = await _client.post<Map<String, dynamic>>(
       '/auth/token',
       auth: false,
-      body: {'email': email, 'password': password},
+      // grantType is required by the server (auth.controller.ts's
+      // `credentials` schema) — anything else is refused 400 with a
+      // pointer at this field. Missing here originally; caught live on a
+      // real device, where it surfaced as an opaque "request did not
+      // validate" with no indication which field was the problem.
+      body: {'grantType': 'password', 'email': email, 'password': password},
     );
     await TokenStore.instance.save(
       accessToken: body['accessToken'] as String,
