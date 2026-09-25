@@ -1,0 +1,74 @@
+name: ebpco_mobile
+description: "eBPCO Citizen Mobile App — Municipality of Castilla, Sorsogon."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+# Dependencies specify other packages that your package needs in order to work.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management — ChangeNotifier services, same shape as the design
+  # reference (Teresa-Rizal-Mobile-main) so the ported shell/theme code
+  # needs no re-architecting.
+  provider: ^6.1.5+1
+
+  # Real backend calls against the live eBPCO API (same host the two web
+  # portals already point at).
+  http: ^1.5.0
+
+  # Access/refresh tokens, never plain SharedPreferences — mirrors the web
+  # portals' own token handling (a bearer token is a credential, not app
+  # state).
+  flutter_secure_storage: ^9.2.4
+
+  # Documents step of the application wizard: pick a file from the device
+  # (PDF/image), same packages the design-reference app already proved out
+  # on this exact Flutter/Dart pin.
+  file_picker: ^11.0.3
+  image_picker: ^1.2.3
+  permission_handler: ^12.0.1
+
+  intl: ^0.20.3
+  url_launcher: ^6.3.2
+
+  # Idempotency-Key headers — the backend requires a real UUID (collisions
+  # across two applicants' keys would replay a stranger's request), same
+  # reasoning as the web portals' own `idempotencyKey()` helper.
+  uuid: ^4.5.1
+
+  # Gothic A1 — the same Google Font both web portals use
+  # (styles.scss/_tokens.scss), for visual parity with them rather than
+  # with the design reference's Inter.
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Regenerate with `dart run flutter_launcher_icons` after changing the
+# source art. The seal is the real Municipality of Castilla logo, copied
+# from `ebpco-user-portal/public/logo.png` (the same file that portal's own
+# sidebar uses) — not placeholder art.
+flutter_launcher_icons:
+  image_path: "assets/images/ebpco_seal.png"
+  android: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/ebpco_seal.png"
+  ios: true
+  remove_alpha_ios: true
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
