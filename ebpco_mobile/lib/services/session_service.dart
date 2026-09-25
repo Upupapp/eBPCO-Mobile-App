@@ -69,6 +69,15 @@ class SessionService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The server no longer accepts this session — nothing to revoke, just
+  /// forget it locally.
+  Future<void> dropSession() async {
+    await TokenStore.instance.clear();
+    _profile = null;
+    _state = SessionState.signedOut;
+    notifyListeners();
+  }
+
   /// Re-fetches `/me` — call after any profile edit so every screen reading
   /// [profile] sees the same, current record.
   Future<void> refreshProfile() async {

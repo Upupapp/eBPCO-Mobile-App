@@ -364,7 +364,9 @@ class CitizenApi {
     return (data: data, unresolvedCount: body['unresolvedCount'] as int? ?? 0);
   }
 
-  Future<void> markNotificationRead(String id) => _client.patch('/notifications/$id/read');
+  /// POST, not PATCH — the route is `@Post('notifications/:id/read')`, same
+  /// call the portal makes.
+  Future<void> markNotificationRead(String id) => _client.post('/notifications/$id/read', body: {});
 
   Future<NotificationPreferences> getNotificationPreferences() async =>
       NotificationPreferences.fromJson(await _client.get<Map<String, dynamic>>('/notification-preferences'));

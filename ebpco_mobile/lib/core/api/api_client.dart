@@ -15,10 +15,9 @@ import 'token_store.dart';
 /// stack.
 ///
 /// A 401 still reachable after that proactive refresh (the refresh token
-/// itself finally expired/was revoked) is surfaced as a normal [ApiError];
-/// it is [SessionService]'s job to notice that and sign the citizen out —
-/// this class never navigates, same separation of concerns as the web
-/// interceptor deferring to `AuthService`.
+/// itself finally expired/was revoked) is thrown as a normal [ApiError] and
+/// also reported through [onSessionExpired]; the app (main.dart) owns what
+/// happens next — this class never navigates.
 class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
@@ -89,9 +88,19 @@ class ApiClient {
     }
   }
 
-  dynamic _handle(http.Response response) {
+  /// Called when an authenticated request answers 401 — the token no longer
+  /// works (expired, revoked or disabled alike). The app signs out and goes
+  /// back to Sign in, like the portal's `citizen-auth.interceptor.ts`.
+  void Function()? onSessionExpired;
+
+  dynamic _handle(http.Response response, {required String path, required bool auth}) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return _decode(response);
+    }
+    // `POST /auth/password/change` answers 401 for a wrong CURRENT password
+    // on a perfectly valid session — the one 401 that must not sign out.
+    if (auth && response.statusCode == 401 && !path.endsWith('/auth/password/change')) {
+      onSessionExpired?.call();
     }
     throw problemFrom(_decode(response), response.statusCode);
   }
@@ -105,7 +114,7 @@ class ApiClient {
   Future<T> get<T>(String path, {bool auth = true}) async {
     try {
       final response = await _http.get(_uri(path), headers: await _headers(auth: auth));
-      return _handle(response) as T;
+      return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
     }
@@ -116,7 +125,7 @@ class ApiClient {
       final headers = await _headers(auth: auth);
       if (idempotencyKey != null) headers['Idempotency-Key'] = idempotencyKey;
       final response = await _http.post(_uri(path), headers: headers, body: body == null ? null : jsonEncode(body));
-      return _handle(response) as T;
+      return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
     }
@@ -125,7 +134,7 @@ class ApiClient {
   Future<T> patch<T>(String path, {Map<String, dynamic>? body, bool auth = true}) async {
     try {
       final response = await _http.patch(_uri(path), headers: await _headers(auth: auth), body: body == null ? null : jsonEncode(body));
-      return _handle(response) as T;
+      return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
     }
@@ -134,7 +143,7 @@ class ApiClient {
   Future<T> put<T>(String path, {Map<String, dynamic>? body, bool auth = true}) async {
     try {
       final response = await _http.put(_uri(path), headers: await _headers(auth: auth), body: body == null ? null : jsonEncode(body));
-      return _handle(response) as T;
+      return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
     }
@@ -143,7 +152,7 @@ class ApiClient {
   Future<T> delete<T>(String path, {bool auth = true}) async {
     try {
       final response = await _http.delete(_uri(path), headers: await _headers(auth: auth));
-      return _handle(response) as T;
+      return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
     }

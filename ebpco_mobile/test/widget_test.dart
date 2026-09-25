@@ -6,7 +6,7 @@ import 'package:ebpco_mobile/screens/splash/splash_screen.dart';
 
 void main() {
   testWidgets('app boots to the splash screen', (WidgetTester tester) async {
-    await tester.pumpWidget(const EbpcoMobileApp());
+    await tester.pumpWidget(EbpcoMobileApp());
 
     expect(find.byType(SplashScreen), findsOneWidget);
     expect(find.image(const AssetImage('assets/images/ebpco_seal.png')), findsOneWidget);
