@@ -36,18 +36,30 @@ class EbpcoMobileApp extends StatelessWidget {
         _notifications.refresh();
         _applications.refresh();
       }
-      ..onOpenApplication = (applicationId) {
-        if (!_session.isSignedIn) {
-          // Launched from a tapped notice: the session is still being restored.
-          // RootShell opens it once the signed-in shell appears.
-          PushService.instance.pendingApplicationId = applicationId;
-          return;
-        }
-        _notifications.refresh();
-        _navigatorKey.currentState?.push(
-          MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: applicationId)),
-        );
-      };
+      ..onOpen = _openNotice;
+  }
+
+  /// A tapped notice counts as read, the same as tapping it in the Alerts
+  /// feed, and opens the application it is about.
+  void _openNotice(TappedNotice notice) {
+    if (!_session.isSignedIn) {
+      // It launched the app and the session is still being restored.
+      // RootShell hands it back here once the signed-in shell appears.
+      PushService.instance.pending = notice;
+      return;
+    }
+    final notificationId = notice.notificationId;
+    if (notificationId != null) {
+      _notifications.markRead(notificationId).catchError((_) {});
+    } else {
+      _notifications.refresh();
+    }
+    final applicationId = notice.applicationId;
+    if (applicationId != null) {
+      _navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: applicationId)),
+      );
+    }
   }
 
   final _navigatorKey = GlobalKey<NavigatorState>();

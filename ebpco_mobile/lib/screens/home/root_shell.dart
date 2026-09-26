@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../services/notifications_service.dart';
 import '../../services/push_service.dart';
-import '../applications/application_detail_screen.dart';
 import '../../theme/app_haptics.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/nav/soft_nav_bar.dart';
@@ -47,10 +46,8 @@ class _RootShellState extends State<RootShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NotificationsService>().refresh();
-      final fromNotice = PushService.instance.takePendingApplication();
-      if (fromNotice != null) {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: fromNotice)));
-      }
+      final tapped = PushService.instance.takePending();
+      if (tapped != null) PushService.instance.onOpen?.call(tapped);
     });
   }
 

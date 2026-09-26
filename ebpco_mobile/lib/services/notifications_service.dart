@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart';
 import '../core/api/citizen_api.dart';
 import '../domain/models.dart';
 
-/// The citizen's real notification feed (`GET /notifications`) — Phase 1
-/// has no push, so this is also the ONLY way a citizen sees a status
-/// change happened; see the approved plan's note on why push is deferred.
+/// The citizen's real notification feed (`GET /notifications`) — the record
+/// of every status change. Push (`PushService`) only announces them; a
+/// muted category or an unreachable phone still lands here.
 class NotificationsService extends ChangeNotifier {
   final _api = CitizenApi.instance;
 
@@ -41,7 +41,7 @@ class NotificationsService extends ChangeNotifier {
     await refresh();
   }
 
-  /// The portal's `markAllReadReal`: one PATCH per unread item, each allowed
+  /// The portal's `markAllReadReal`: one request per unread item, each allowed
   /// to fail on its own, then a single refresh.
   Future<void> markAllRead() async {
     final unread = _items.where((n) => !n.isRead).toList();

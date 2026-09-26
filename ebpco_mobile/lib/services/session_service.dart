@@ -37,18 +37,33 @@ class SessionService extends ChangeNotifier {
       return;
     }
     try {
-      _profile = await _api.me();
+      _profile = await _meWhenReachable();
       _state = SessionState.signedIn;
       unawaited(PushService.instance.registerSignedIn());
+    } on ApiError catch (e) {
+      // Only the server refusing the session ends it. No signal, a timeout
+      // or a 5xx keeps the stored tokens — like the web portals' own
+      // restore() — so the next launch tries again instead of the citizen
+      // being signed out for opening the app in a dead zone.
+      if (e.status == 401 || e.status == 403) await TokenStore.instance.clear();
+      _state = SessionState.signedOut;
     } catch (_) {
-      // The stored token no longer works (refresh token also expired/
-      // revoked) — same as the web portals' own restore(): fall back to
-      // signed-out rather than surfacing an error for something the
-      // citizen never actively did this session.
-      await TokenStore.instance.clear();
       _state = SessionState.signedOut;
     }
     notifyListeners();
+  }
+
+  /// `/me`, retried briefly while the server is unreachable: opening the app
+  /// right as the phone boots or regains signal is the ordinary case.
+  Future<MeProfile> _meWhenReachable() async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await _api.me();
+      } on ApiError catch (e) {
+        if (e.status != 0 || attempt == 3) rethrow;
+        await Future<void>.delayed(Duration(seconds: 1 << attempt));
+      }
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -58,7 +73,7 @@ class SessionService extends ChangeNotifier {
       _profile = await _api.me();
       _state = SessionState.signedIn;
       notifyListeners();
-      unawaited(PushService.instance.registerSignedIn());
+      unawaited(PushService.instance.registerAfterSignIn());
       return true;
     } on ApiError catch (e) {
       _lastError = e.citizenMessage;

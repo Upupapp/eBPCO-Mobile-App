@@ -4,5 +4,7 @@
          The OS draws the launch window before Flutter's first frame, so it
          must match or every cold start flashes the wrong colour. -->
     <color name="ebpco_primary_600">#FFA5182A</color>
+    <!-- SoftColors.primary (#C81E2C): the accent Android tints notices with. -->
+    <color name="ebpco_primary_500">#FFC81E2C</color>
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

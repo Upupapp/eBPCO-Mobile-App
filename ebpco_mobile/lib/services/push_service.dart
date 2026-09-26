@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -10,13 +11,28 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/api/citizen_api.dart';
 import '../core/config/firebase_options.dart';
 
+/// A notice the citizen tapped — both ids ride in the push's data
+/// (`push-delivery.service.ts`); either may be absent.
+class TappedNotice {
+  const TappedNotice({this.notificationId, this.applicationId});
+
+  final String? notificationId;
+  final String? applicationId;
+
+  static TappedNotice? fromData(Map<String, dynamic> data) {
+    String? text(Object? value) => value is String && value.isNotEmpty ? value : null;
+    final notice = TappedNotice(notificationId: text(data['notificationId']), applicationId: text(data['applicationId']));
+    return notice.notificationId == null && notice.applicationId == null ? null : notice;
+  }
+}
+
 /// Push notifications over Firebase Cloud Messaging.
 ///
 /// The server decides what to send and when (muted categories, quiet hours);
 /// this class only makes the handset reachable: it asks permission, hands the
 /// FCM token to `POST /devices` while signed in, removes it on sign-out, shows
-/// a notice that arrives while the app is open, and opens the application a
-/// notice is about when it is tapped.
+/// a notice that arrives while the app is open, and reports a tapped notice
+/// so the app can open it.
 ///
 /// Android only for now — see [EbpcoFirebaseOptions].
 class PushService {
@@ -26,22 +42,25 @@ class PushService {
   /// Must match the server's `ANDROID_CHANNEL_ID` (fcm-sender.ts).
   static const channelId = 'ebpco_updates';
   static const _deviceIdKey = 'ebpco_push_device_id';
+  /// Same icon and tint the manifest gives Firebase for background notices.
+  static const _smallIcon = '@drawable/ic_stat_ebpco';
+  static const _accent = Color(0xFFC81E2C);
 
   final _storage = const FlutterSecureStorage();
   final _local = FlutterLocalNotificationsPlugin();
   StreamSubscription<String>? _tokenRefresh;
   bool _ready = false;
 
-  /// Opens the application a tapped notice is about.
-  void Function(String applicationId)? onOpenApplication;
+  /// Opens a tapped notice.
+  void Function(TappedNotice notice)? onOpen;
 
-  /// A tapped notice that arrived before the session was restored.
-  String? pendingApplicationId;
+  /// A notice tapped before the session was restored (it launched the app).
+  TappedNotice? pending;
 
-  String? takePendingApplication() {
-    final id = pendingApplicationId;
-    pendingApplicationId = null;
-    return id;
+  TappedNotice? takePending() {
+    final notice = pending;
+    pending = null;
+    return notice;
   }
 
   /// A notice arrived while the app is in front — refresh the feed and badge.
@@ -55,8 +74,8 @@ class PushService {
       await Firebase.initializeApp(options: EbpcoFirebaseOptions.android);
 
       await _local.initialize(
-        settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
-        onDidReceiveNotificationResponse: (response) => _openFromData(response.payload),
+        settings: const InitializationSettings(android: AndroidInitializationSettings(_smallIcon)),
+        onDidReceiveNotificationResponse: (response) => _openPayload(response.payload),
       );
       // The channel background pushes are posted to; created up front so its
       // name and importance are ours rather than Firebase's default.
@@ -70,10 +89,16 @@ class PushService {
           ));
 
       FirebaseMessaging.onMessage.listen(_showInForeground);
-      FirebaseMessaging.onMessageOpenedApp.listen((message) => _openFromData(message.data['applicationId']));
+      FirebaseMessaging.onMessageOpenedApp.listen((message) => _open(TappedNotice.fromData(message.data)));
       final launchedFrom = await FirebaseMessaging.instance.getInitialMessage();
       if (launchedFrom != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _openFromData(launchedFrom.data['applicationId']));
+        WidgetsBinding.instance.addPostFrameCallback((_) => _open(TappedNotice.fromData(launchedFrom.data)));
+      }
+      // Tapping an in-app banner while the app was closed launches it here.
+      final launch = await _local.getNotificationAppLaunchDetails();
+      if (launch?.didNotificationLaunchApp ?? false) {
+        final payload = launch!.notificationResponse?.payload;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _openPayload(payload));
       }
       _ready = true;
     } catch (e) {
@@ -96,6 +121,15 @@ class PushService {
     } catch (e) {
       debugPrint('Push registration failed: $e');
     }
+  }
+
+  /// Call on a fresh sign-in. A registration still stored here belongs to a
+  /// session that ended without removing it (it could not reach the server),
+  /// possibly another account's — rotate the token so that account's notices
+  /// stop reaching whoever signs in now.
+  Future<void> registerAfterSignIn() async {
+    if (await _storage.read(key: _deviceIdKey) != null) await forgetLocally();
+    await registerSignedIn();
   }
 
   Future<void> _register(String token) async {
@@ -147,19 +181,29 @@ class PushService {
       id: message.messageId.hashCode,
       title: notice.title,
       body: notice.body,
-      payload: message.data['applicationId'],
+      payload: jsonEncode(message.data),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
           'Application updates',
           importance: Importance.high,
           priority: Priority.high,
+          color: _accent,
         ),
       ),
     );
   }
 
-  void _openFromData(Object? applicationId) {
-    if (applicationId is String && applicationId.isNotEmpty) onOpenApplication?.call(applicationId);
+  void _openPayload(String? payload) {
+    if (payload == null) return;
+    try {
+      _open(TappedNotice.fromData(jsonDecode(payload) as Map<String, dynamic>));
+    } on FormatException {
+      // Not one of ours.
+    }
+  }
+
+  void _open(TappedNotice? notice) {
+    if (notice != null) onOpen?.call(notice);
   }
 }
