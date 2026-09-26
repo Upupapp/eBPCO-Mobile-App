@@ -53,6 +53,7 @@ dependencies:
   # Profile photo: the server strips every EXIF block, including the
   # orientation tag, so a camera photo is turned upright here before upload.
   image: ^4.10.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

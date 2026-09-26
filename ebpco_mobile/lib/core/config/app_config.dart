@@ -19,4 +19,12 @@ class AppConfig {
     'EBPCO_API_BASE_URL',
     defaultValue: 'https://139-162-51-165.sslip.io',
   );
+
+  /// The citizen web portal — the server's own `USER_PORTAL_BASE_URL`. A
+  /// permit's QR code points at its public `/verify/<permit number>` page,
+  /// the same address the portal's printed permit encodes.
+  static const String userPortalBaseUrl = String.fromEnvironment(
+    'EBPCO_USER_PORTAL_BASE_URL',
+    defaultValue: 'https://fastidious-chimera-7a7a18.netlify.app',
+  );
 }

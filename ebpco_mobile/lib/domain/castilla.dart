@@ -25,3 +25,8 @@ const List<String> nationalities = [
 
 const String castillaCity = 'Castilla';
 const String castillaProvince = 'Sorsogon';
+
+/// Castilla, Sorsogon's postal code — filled in on sign-up, as the portal's
+/// `register.page.ts` does, and still editable for the rare address that
+/// genuinely differs.
+const String castillaPostalCode = '4713';

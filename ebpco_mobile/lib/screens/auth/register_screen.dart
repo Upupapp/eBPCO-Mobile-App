@@ -59,7 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _mobile = TextEditingController();
   final _street = TextEditingController();
   String? _barangay;
-  final _postal = TextEditingController();
+  final _postal = TextEditingController(text: castillaPostalCode);
   final _code = TextEditingController();
   bool _codeSent = false;
   bool _emailVerified = false;
