@@ -54,7 +54,9 @@ class ApiError implements Exception {
   String get citizenMessage {
     final detail = problem?.detail;
     if (detail != null && detail.isNotEmpty) return detail;
-    if (status == 413) return 'That file is too large to upload. Try a file under about 750 KB.';
+    // No number: the limit is the server's to set (`GET /limits`), and a
+    // figure frozen here goes wrong the day it is raised.
+    if (status == 413) return 'That file is too large for the Municipality\'s system. Try a smaller file.';
     if (status == 404) return 'We could not find that. It may not exist, or it may not be on your account.';
     if (status == 0) return "We could not reach the Municipality's system. Check your connection and try again.";
     final title = problem?.title;

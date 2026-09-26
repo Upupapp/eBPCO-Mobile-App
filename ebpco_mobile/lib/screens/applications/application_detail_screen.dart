@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
+import '../../services/upload_limits.dart';
 import '../../theme/app_status.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
@@ -78,65 +80,59 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     }
   }
 
-  Future<({String name, List<int> bytes})?> _pickFile() async {
+  void _toast(String message) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 6)));
+
+  /// Picks a file, makes it something the server accepts (`readyForUpload`),
+  /// hands it to [send] and shows what [send] reports — or why it could not
+  /// go. A file the phone would not read used to do nothing at all.
+  Future<void> _sendPicked(String busyKey, Future<String> Function(ReadyUpload file) send) async {
     final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
     final picked = result?.files.single;
-    if (picked == null) return null;
-    final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
-    if (bytes == null) return null;
-    return (name: picked.name, bytes: bytes);
+    if (picked == null || !mounted) return;
+    setState(() => _busyDocumentKey = busyKey);
+    try {
+      final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+      if (bytes == null) throw const UploadRefused(unreadableFile);
+      final done = await send(await readyForUpload(picked.name, bytes));
+      if (!mounted) return;
+      _toast(done);
+      await _load();
+    } on UploadRefused catch (e) {
+      if (mounted) _toast(e.message);
+    } on ApiError catch (e) {
+      if (mounted) _toast(e.citizenMessage);
+    } finally {
+      if (mounted) setState(() => _busyDocumentKey = null);
+    }
   }
-
-  void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
   /// The portal's `onReplace`: a new version of a document the office
   /// rejected or asked to revise. Stripped metadata is reported, not hidden.
-  Future<void> _replace(DocumentEntry doc) async {
-    final file = await _pickFile();
-    if (file == null || !mounted) return;
-    setState(() => _busyDocumentKey = doc.id);
-    try {
-      final removed = await _api.resubmitDocument(
-        applicationId: widget.applicationId,
-        documentId: doc.id,
-        fileName: file.name,
-        label: doc.label,
-        contentBase64: base64Encode(file.bytes),
-      );
-      if (!mounted) return;
-      final stripped = removed.isEmpty ? '' : ' ${removed.join(', ')} was removed from the file.';
-      _toast('Replacement sent for "${doc.label}".$stripped');
-      await _load();
-    } on ApiError catch (e) {
-      if (mounted) _toast(e.citizenMessage);
-    } finally {
-      if (mounted) setState(() => _busyDocumentKey = null);
-    }
-  }
+  Future<void> _replace(DocumentEntry doc) => _sendPicked(doc.id, (file) async {
+        final removed = await _api.resubmitDocument(
+          applicationId: widget.applicationId,
+          documentId: doc.id,
+          fileName: file.fileName,
+          label: doc.label,
+          contentBase64: base64Encode(file.bytes),
+        );
+        final stripped = removed.isEmpty ? '' : ' ${removed.join(', ')} was removed from the file.';
+        return 'Replacement sent for "${doc.label}".$stripped';
+      });
 
   /// The portal's `attachMissing`: first-time upload for a required document
   /// nothing has been sent for yet, attached to this application.
-  Future<void> _attachMissing(RequirementDoc req) async {
-    final file = await _pickFile();
-    if (file == null || !mounted) return;
-    setState(() => _busyDocumentKey = req.code);
-    try {
-      await _api.uploadDocument(
-        fileName: file.name,
-        label: req.label,
-        contentBase64: base64Encode(file.bytes),
-        applicationId: widget.applicationId,
-        requirementCode: req.code,
-      );
-      if (!mounted) return;
-      _toast('"${req.label}" sent.');
-      await _load();
-    } on ApiError catch (e) {
-      if (mounted) _toast(e.citizenMessage);
-    } finally {
-      if (mounted) setState(() => _busyDocumentKey = null);
-    }
-  }
+  Future<void> _attachMissing(RequirementDoc req) => _sendPicked(req.code, (file) async {
+        await _api.uploadDocument(
+          fileName: file.fileName,
+          label: req.label,
+          contentBase64: base64Encode(file.bytes),
+          applicationId: widget.applicationId,
+          requirementCode: req.code,
+        );
+        return '"${req.label}" sent.';
+      });
 
   /// The portal's `canCancel`: the applicant's own `-> Cancelled` transitions,
   /// and only before any fee has been assessed.

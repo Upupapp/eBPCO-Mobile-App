@@ -10,8 +10,10 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
+import '../../services/upload_limits.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/document_library_sheet.dart';
@@ -288,8 +290,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       final bytes =
           picked.bytes ??
           (picked.path != null ? await File(picked.path!).readAsBytes() : null);
-      if (bytes == null) throw const ApiError(0, null, true);
-      return bytes;
+      if (bytes == null) throw const UploadRefused(unreadableFile);
+      return readyForUpload(picked.name, bytes);
     });
   }
 
@@ -312,7 +314,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         final url = await _api.getDocumentContent(chosen.id);
         final response = await http.get(Uri.parse(url));
         if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
-        return response.bodyBytes;
+        // Already accepted by the server once, exactly as it is.
+        return (bytes: response.bodyBytes, fileName: chosen.fileName);
       },
       failure: 'Could not reuse "${chosen.fileName}". Try again, or upload a new file.',
     );
@@ -335,38 +338,43 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   Future<void> _upload(
     RequirementDoc doc,
     String fileName,
-    Future<List<int>> Function() readBytes, {
+    Future<ReadyUpload> Function() ready, {
     String failure = 'Could not upload that file. Please try again.',
   }) async {
     setState(() => _uploadingCode = doc.code);
     try {
-      final bytes = await readBytes();
+      final file = await ready();
       final documentId = await _api.uploadDocument(
-        fileName: fileName,
+        fileName: file.fileName,
         label: doc.label,
-        contentBase64: base64Encode(bytes),
+        contentBase64: base64Encode(file.bytes),
         requirementCode: doc.code,
       );
       if (!mounted) return;
       setState(() {
         _attachedDocIds[doc.code] = documentId;
-        _attachedFileNames[doc.code] = fileName;
+        _attachedFileNames[doc.code] = file.fileName;
         // A "(N missing)" count from before this upload is now wrong.
         _error = null;
       });
       // What was just uploaded can be reused for the next requirement.
       unawaited(_loadLibrary());
+    } on UploadRefused catch (e) {
+      _say(e.message);
     } on ApiError catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      _say(e.citizenMessage);
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(failure)));
+      _say(failure);
     } finally {
       if (mounted) setState(() => _uploadingCode = null);
     }
+  }
+
+  void _say(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+    );
   }
 
   bool get _requiredDocumentsComplete => _requirements
@@ -850,11 +858,21 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                   ],
                   const SizedBox(height: 12),
                   if (uploading)
-                    const Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                    Center(
+                      child: Column(
+                        children: [
+                          const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Uploading… a large file can take a minute on mobile data.',
+                            textAlign: TextAlign.center,
+                            style: SoftType.cellLabel,
+                          ),
+                        ],
                       ),
                     )
                   else if (attached != null)

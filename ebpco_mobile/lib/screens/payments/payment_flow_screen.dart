@@ -9,7 +9,9 @@ import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/lgu_contact.dart';
 import '../../domain/models.dart';
+import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
+import '../../services/upload_limits.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
@@ -39,6 +41,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
   String _method = 'Bank Transfer';
   String? _proofFileName;
   List<int>? _proofBytes;
+  bool _preparingProof = false;
   String? _error;
 
   @override
@@ -64,12 +67,26 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
     final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
     final picked = result?.files.single;
     if (picked == null) return;
-    final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
-    if (bytes == null) return;
+    // Made ready now, not at Submit: a file the server would refuse is
+    // better known while the citizen is still choosing one.
     setState(() {
-      _proofFileName = picked.name;
-      _proofBytes = bytes;
+      _preparingProof = true;
+      _error = null;
     });
+    try {
+      final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+      if (bytes == null) throw const UploadRefused(unreadableFile);
+      final ready = await readyForUpload(picked.name, bytes);
+      if (!mounted) return;
+      setState(() {
+        _proofFileName = ready.fileName;
+        _proofBytes = ready.bytes;
+      });
+    } on UploadRefused catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _preparingProof = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -244,10 +261,16 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
                   const Icon(Icons.check_circle_rounded, color: SoftColors.verifiedInk, size: 18),
                   const SizedBox(width: 6),
                   Expanded(child: Text(_proofFileName!, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.cellValue)),
-                  TextButton(onPressed: _pickProof, child: const Text('Replace')),
+                  TextButton(onPressed: _preparingProof ? null : _pickProof, child: const Text('Replace')),
                 ],
               )
-            : SoftPillButton(label: 'Attach File', kind: SoftPillKind.outline, icon: Icons.attach_file_rounded, onPressed: _pickProof),
+            : SoftPillButton(
+                label: 'Attach File',
+                kind: SoftPillKind.outline,
+                icon: Icons.attach_file_rounded,
+                busy: _preparingProof,
+                onPressed: _pickProof,
+              ),
       ],
     );
   }
