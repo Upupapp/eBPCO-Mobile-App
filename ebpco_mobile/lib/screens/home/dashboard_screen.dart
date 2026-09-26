@@ -11,6 +11,7 @@ import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import '../applications/application_detail_screen.dart';
+import '../applications/my_applications_screen.dart';
 import '../business/business_list_screen.dart';
 import '../payments/payments_list_screen.dart';
 import '../permits/permit_catalog_screen.dart';
@@ -143,7 +144,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 26),
-              SoftSectionHeader(title: 'Active applications', action: 'See all', onAction: () => RootShell.jumpTo(context, 1)),
+              SoftSectionHeader(
+                title: 'Active applications',
+                action: 'See all',
+                // "See all" means every application, not whichever filter the
+                // Applications tab was last left on.
+                onAction: () {
+                  MyApplicationsScreen.showFilter('All');
+                  RootShell.jumpTo(context, 1);
+                },
+              ),
               if (apps.loading && apps.applications.isEmpty)
                 const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
               else if (active.isEmpty)

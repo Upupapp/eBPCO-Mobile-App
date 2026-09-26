@@ -15,17 +15,47 @@ const _filters = ['All', 'Draft', 'Submitted', 'Under Review', 'Payment Verifica
 class MyApplicationsScreen extends StatefulWidget {
   const MyApplicationsScreen({super.key});
 
+  /// Asks the (kept-alive) Applications tab to show [filter] — the tab keeps
+  /// whatever chip was last picked across tab switches, so a link that means
+  /// "every application", like the dashboard's "See all", must say so rather
+  /// than land wherever the citizen last left it.
+  static void showFilter(String filter) {
+    _requestedFilter.value = null;
+    _requestedFilter.value = filter;
+  }
+
+  static final _requestedFilter = ValueNotifier<String?>(null);
+
   @override
   State<MyApplicationsScreen> createState() => _MyApplicationsScreenState();
 }
 
 class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
   String _filter = 'All';
+  final _chips = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    MyApplicationsScreen._requestedFilter.addListener(_onFilterRequested);
+    _onFilterRequested();
     WidgetsBinding.instance.addPostFrameCallback((_) => context.read<ApplicationsService>().refresh());
+  }
+
+  @override
+  void dispose() {
+    MyApplicationsScreen._requestedFilter.removeListener(_onFilterRequested);
+    _chips.dispose();
+    super.dispose();
+  }
+
+  void _onFilterRequested() {
+    final requested = MyApplicationsScreen._requestedFilter.value;
+    if (requested == null || !_filters.contains(requested)) return;
+    if (mounted) setState(() => _filter = requested);
+    // Bring the requested chip into view — "All" sits at the very start, and
+    // the row may have been scrolled to a filter near the end.
+    if (requested == _filters.first && _chips.hasClients) _chips.jumpTo(0);
   }
 
   @override
@@ -42,6 +72,7 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
           SizedBox(
             height: 44,
             child: ListView.separated(
+              controller: _chips,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: _filters.length,
