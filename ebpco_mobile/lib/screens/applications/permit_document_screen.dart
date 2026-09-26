@@ -44,6 +44,13 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
   void initState() {
     super.initState();
     _load();
+    // The Property section reads the business list, which is only loaded
+    // once My Businesses has been opened.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final businesses = context.read<BusinessesService>();
+      if (businesses.businesses.isEmpty && !businesses.loading) businesses.refresh();
+    });
   }
 
   Future<void> _load() async {
