@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/api/api_client.dart';
+import 'screens/applications/application_detail_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'services/applications_service.dart';
 import 'services/businesses_service.dart';
 import 'services/notifications_service.dart';
+import 'services/push_service.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PushService.instance.init();
   runApp(EbpcoMobileApp());
 }
 
@@ -27,6 +31,23 @@ class _UnfocusOnNavigate extends NavigatorObserver {
 class EbpcoMobileApp extends StatelessWidget {
   EbpcoMobileApp({super.key}) {
     ApiClient.instance.onSessionExpired = _onSessionExpired;
+    PushService.instance
+      ..onForegroundMessage = () {
+        _notifications.refresh();
+        _applications.refresh();
+      }
+      ..onOpenApplication = (applicationId) {
+        if (!_session.isSignedIn) {
+          // Launched from a tapped notice: the session is still being restored.
+          // RootShell opens it once the signed-in shell appears.
+          PushService.instance.pendingApplicationId = applicationId;
+          return;
+        }
+        _notifications.refresh();
+        _navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: applicationId)),
+        );
+      };
   }
 
   final _navigatorKey = GlobalKey<NavigatorState>();

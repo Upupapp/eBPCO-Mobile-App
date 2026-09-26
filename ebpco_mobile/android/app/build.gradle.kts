@@ -12,11 +12,16 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications uses java.time APIs on older Android.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "ph.gov.castilla.ebpco.ebpco_mobile"
+        // The ID registered for eBPCO Mobile in the castilla-ebpco Firebase
+        // project — the Municipality's own domain (castillasorsogon.gov.ph)
+        // reversed. It must match Firebase or push registration fails, and it
+        // is permanent once the app is on the Play Store.
+        applicationId = "ph.gov.castillasorsogon.ebpco"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -46,4 +51,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

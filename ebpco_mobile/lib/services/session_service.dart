@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/api/citizen_api.dart';
 import '../core/api/problem.dart';
 import '../core/api/token_store.dart';
 import '../domain/models.dart';
+import 'push_service.dart';
 
 enum SessionState { loading, signedOut, signedIn }
 
@@ -36,6 +39,7 @@ class SessionService extends ChangeNotifier {
     try {
       _profile = await _api.me();
       _state = SessionState.signedIn;
+      unawaited(PushService.instance.registerSignedIn());
     } catch (_) {
       // The stored token no longer works (refresh token also expired/
       // revoked) — same as the web portals' own restore(): fall back to
@@ -54,6 +58,7 @@ class SessionService extends ChangeNotifier {
       _profile = await _api.me();
       _state = SessionState.signedIn;
       notifyListeners();
+      unawaited(PushService.instance.registerSignedIn());
       return true;
     } on ApiError catch (e) {
       _lastError = e.citizenMessage;
@@ -63,9 +68,12 @@ class SessionService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Signed-out first, so a 401 while unregistering is not mistaken for an
+    // expired session mid-use; the stored token is still sent until revoked.
+    _state = SessionState.signedOut;
+    await PushService.instance.unregister();
     await _api.logout();
     _profile = null;
-    _state = SessionState.signedOut;
     notifyListeners();
   }
 
@@ -73,6 +81,7 @@ class SessionService extends ChangeNotifier {
   /// forget it locally.
   Future<void> dropSession() async {
     await TokenStore.instance.clear();
+    await PushService.instance.forgetLocally();
     _profile = null;
     _state = SessionState.signedOut;
     notifyListeners();

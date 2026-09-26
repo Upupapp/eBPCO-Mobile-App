@@ -382,6 +382,19 @@ class CitizenApi {
     return (data: data, unresolvedCount: body['unresolvedCount'] as int? ?? 0);
   }
 
+  /// `POST /devices` — this handset's FCM token, so the server can push to
+  /// it. Returns the server's device id, needed to unregister on sign-out.
+  Future<String> registerDevice({required String platform, required String pushToken, String? locale}) async {
+    final body = await _client.post<Map<String, dynamic>>('/devices', body: {
+      'platform': platform,
+      'pushToken': pushToken,
+      if (locale != null && locale.length <= 20) 'locale': locale,
+    });
+    return body['deviceId'] as String;
+  }
+
+  Future<void> removeDevice(String deviceId) => _client.delete('/devices/$deviceId');
+
   /// POST, not PATCH — the route is `@Post('notifications/:id/read')`, same
   /// call the portal makes.
   Future<void> markNotificationRead(String id) => _client.post('/notifications/$id/read', body: {});

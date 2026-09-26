@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Every screen in this app talks to the real eBPCO API. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+: asked for once signed in, so the Municipality's status updates can reach the phone. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- file_picker/image_picker (Documents step of the application wizard,
          profile photo). Scoped to media the citizen actively picks via the
          system picker, not broad storage access. -->
@@ -37,6 +39,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Background pushes land on the channel PushService creates (same id as the server sends). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="ebpco_updates" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
