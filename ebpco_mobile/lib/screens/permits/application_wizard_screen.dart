@@ -92,9 +92,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   bool get _isResuming => widget.draftId != null;
 
+  late final ApplicationsService _applications;
+
   @override
   void initState() {
     super.initState();
+    _applications = context.read<ApplicationsService>();
     _permitType = widget.permitType ?? '';
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => context.read<BusinessesService>().refresh(),
@@ -108,6 +111,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   @override
   void dispose() {
+    // Step 1 already created the Draft on the server; leaving with Back must
+    // not leave My Applications without it until the next pull-to-refresh.
+    // After this frame, not during teardown, since refresh notifies at once.
+    if (_draftId != null) Future.microtask(_applications.refresh);
     _scroll.dispose();
     for (final c in [
       _priorPermitClaim,

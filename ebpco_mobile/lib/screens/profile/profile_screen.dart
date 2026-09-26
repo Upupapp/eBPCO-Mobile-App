@@ -62,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final action = await showSoftActionSheet<_PhotoAction>(
       context,
       title: 'Profile photo',
-      subtitle: 'A clear photo of your face. JPEG or PNG, up to 5 MB.',
+      subtitle: 'A clear, recent photo of your face.',
       actions: [
         const SoftSheetAction(value: _PhotoAction.camera, icon: Icons.photo_camera_outlined, title: 'Take a photo'),
         const SoftSheetAction(value: _PhotoAction.gallery, icon: Icons.photo_library_outlined, title: 'Choose from gallery'),
