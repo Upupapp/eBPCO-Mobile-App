@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -117,6 +118,17 @@ class ApiClient {
     try {
       final response = await _http.get(_uri(path), headers: await _headers(auth: auth));
       return _handle(response, path: path, auth: auth) as T;
+    } on http.ClientException {
+      throw const ApiError(0, null, true);
+    }
+  }
+
+  /// An authenticated GET whose body is bytes, not JSON (`GET /me/photo`).
+  Future<Uint8List> getBytes(String path) async {
+    try {
+      final response = await _http.get(_uri(path), headers: await _headers(auth: true));
+      if (response.statusCode >= 200 && response.statusCode < 300) return response.bodyBytes;
+      return _handle(response, path: path, auth: true) as Uint8List;
     } on http.ClientException {
       throw const ApiError(0, null, true);
     }

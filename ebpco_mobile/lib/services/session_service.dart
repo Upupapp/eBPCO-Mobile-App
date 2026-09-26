@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -6,6 +7,7 @@ import '../core/api/citizen_api.dart';
 import '../core/api/problem.dart';
 import '../core/api/token_store.dart';
 import '../domain/models.dart';
+import '../domain/profile_photo.dart';
 import 'push_service.dart';
 
 enum SessionState { loading, signedOut, signedIn }
@@ -19,10 +21,16 @@ class SessionService extends ChangeNotifier {
 
   SessionState _state = SessionState.loading;
   MeProfile? _profile;
+  Uint8List? _photo;
   String? _lastError;
 
   SessionState get state => _state;
   MeProfile? get profile => _profile;
+
+  /// The profile photo's bytes, fetched once and shared by every avatar —
+  /// the portal's `AuthService.photoUrl`. Null when there is none (or it
+  /// could not be loaded; the avatar then shows initials).
+  Uint8List? get photo => _photo;
   String? get lastError => _lastError;
   bool get isSignedIn => _state == SessionState.signedIn;
 
@@ -39,6 +47,7 @@ class SessionService extends ChangeNotifier {
     try {
       _profile = await _meWhenReachable();
       _state = SessionState.signedIn;
+      unawaited(_loadPhoto());
       unawaited(PushService.instance.registerSignedIn());
     } on ApiError catch (e) {
       // Only the server refusing the session ends it. No signal, a timeout
@@ -73,6 +82,7 @@ class SessionService extends ChangeNotifier {
       _profile = await _api.me();
       _state = SessionState.signedIn;
       notifyListeners();
+      unawaited(_loadPhoto());
       unawaited(PushService.instance.registerAfterSignIn());
       return true;
     } on ApiError catch (e) {
@@ -89,6 +99,7 @@ class SessionService extends ChangeNotifier {
     await PushService.instance.unregister();
     await _api.logout();
     _profile = null;
+    _photo = null;
     notifyListeners();
   }
 
@@ -98,6 +109,7 @@ class SessionService extends ChangeNotifier {
     await TokenStore.instance.clear();
     await PushService.instance.forgetLocally();
     _profile = null;
+    _photo = null;
     _state = SessionState.signedOut;
     notifyListeners();
   }
@@ -107,6 +119,33 @@ class SessionService extends ChangeNotifier {
   Future<void> refreshProfile() async {
     if (!isSignedIn) return;
     _profile = await _api.me();
+    if (_profile?.hasPhoto != true) _photo = null;
     notifyListeners();
+  }
+
+  Future<void> _loadPhoto() async {
+    if (_profile?.hasPhoto != true) return;
+    try {
+      _photo = await _api.photo();
+      notifyListeners();
+    } catch (_) {
+      // The avatar keeps showing initials.
+    }
+  }
+
+  /// `PUT /me/photo` with a photo already made upright and metadata-free
+  /// (`prepareProfilePhoto`), so what is shown here is what the server kept.
+  Future<void> setPhoto(PreparedPhoto photo) async {
+    await _api.uploadPhoto(fileName: photo.fileName, contentBase64: base64Encode(photo.bytes));
+    _photo = photo.bytes;
+    notifyListeners();
+    unawaited(refreshProfile().catchError((_) {}));
+  }
+
+  Future<void> removePhoto() async {
+    await _api.removePhoto();
+    _photo = null;
+    notifyListeners();
+    unawaited(refreshProfile().catchError((_) {}));
   }
 }

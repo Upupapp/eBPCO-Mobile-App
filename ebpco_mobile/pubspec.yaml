@@ -50,6 +50,9 @@ dependencies:
   firebase_core: ^4.15.0
   firebase_messaging: ^16.7.0
   flutter_local_notifications: ^22.3.1
+  # Profile photo: the server strips every EXIF block, including the
+  # orientation tag, so a camera photo is turned upright here before upload.
+  image: ^4.10.1
 
 dev_dependencies:
   flutter_test:

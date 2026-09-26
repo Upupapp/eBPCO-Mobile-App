@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../domain/models.dart';
 import '../config/app_config.dart';
 import 'api_client.dart';
@@ -119,6 +121,18 @@ class CitizenApi {
 
   Future<MeProfile> patchMe(Map<String, dynamic> patch) async =>
       MeProfile.fromJson(await _client.patch<Map<String, dynamic>>('/me', body: patch));
+
+  /// `PUT /me/photo` — replaces the one profile photo. JPEG or PNG, 5 MB;
+  /// the server strips location and other metadata before keeping it.
+  Future<void> uploadPhoto({required String fileName, required String contentBase64}) =>
+      _client.put<Map<String, dynamic>>('/me/photo', body: {'fileName': fileName, 'contentBase64': contentBase64});
+
+  /// `DELETE /me/photo` — a no-op, not an error, when there is none.
+  Future<void> removePhoto() => _client.delete<void>('/me/photo');
+
+  /// `GET /me/photo` — the image bytes (a bearer-token route, so no plain
+  /// image URL could load it). Only call when `MeProfile.hasPhoto`.
+  Future<Uint8List> photo() => _client.getBytes('/me/photo');
 
   Future<ErasureReceipt> eraseAccount() async => ErasureReceipt.fromJson(await _client.delete<Map<String, dynamic>>('/me'));
 

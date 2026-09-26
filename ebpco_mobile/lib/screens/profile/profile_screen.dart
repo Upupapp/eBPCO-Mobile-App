@@ -1,13 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../domain/profile_photo.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
 import '../../services/notifications_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/soft_action_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
@@ -40,10 +44,77 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+enum _PhotoAction { camera, gallery, remove }
+
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _deleting = false;
+  bool _photoBusy = false;
 
   void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+
+  void _say(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+
+  /// The portal's photo control: saved the moment it is chosen
+  /// (`PUT /me/photo`), not staged behind Edit Profile's Save.
+  Future<void> _changePhoto() async {
+    final session = context.read<SessionService>();
+    final hasPhoto = session.photo != null || (session.profile?.hasPhoto ?? false);
+    final action = await showSoftActionSheet<_PhotoAction>(
+      context,
+      title: 'Profile photo',
+      subtitle: 'A clear photo of your face. JPEG or PNG, up to 5 MB.',
+      actions: [
+        const SoftSheetAction(value: _PhotoAction.camera, icon: Icons.photo_camera_outlined, title: 'Take a photo'),
+        const SoftSheetAction(value: _PhotoAction.gallery, icon: Icons.photo_library_outlined, title: 'Choose from gallery'),
+        if (hasPhoto)
+          const SoftSheetAction(value: _PhotoAction.remove, icon: Icons.delete_outline_rounded, title: 'Remove photo', destructive: true),
+      ],
+    );
+    if (action == null || !mounted) return;
+
+    if (action == _PhotoAction.remove) {
+      setState(() => _photoBusy = true);
+      try {
+        await session.removePhoto();
+        if (mounted) _say('Photo removed.');
+      } on ApiError catch (e) {
+        if (mounted) _say(e.citizenMessage);
+      } finally {
+        if (mounted) setState(() => _photoBusy = false);
+      }
+      return;
+    }
+
+    final XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: action == _PhotoAction.camera ? ImageSource.camera : ImageSource.gallery,
+        preferredCameraDevice: CameraDevice.front,
+        // Keeps decoding quick; the photo is scaled down further below.
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+    } catch (_) {
+      if (mounted) _say(action == _PhotoAction.camera ? 'The camera could not be opened.' : 'Your photos could not be opened.');
+      return;
+    }
+    if (picked == null || !mounted) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      final prepared = await compute(prepareProfilePhoto, await picked.readAsBytes());
+      if (prepared == null) {
+        if (mounted) _say('That file is not a photo that can be used. Choose a JPEG or PNG image.');
+        return;
+      }
+      await session.setPhoto(prepared);
+      if (mounted) _say('Photo updated.');
+    } on ApiError catch (e) {
+      if (mounted) _say(e.citizenMessage);
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
 
   Future<void> _logout() async {
     await context.read<SessionService>().logout();
@@ -113,7 +184,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.watch<SessionService>().profile;
+    final session = context.watch<SessionService>();
+    final profile = session.profile;
     final unread = context.watch<NotificationsService>().unreadCount;
     final verified = profile?.emailVerifiedAt != null;
     final barangay = profile?.barangay;
@@ -152,7 +224,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              SoftInitialAvatar(initials: _initials(profile?.firstName, profile?.lastName), size: 64),
+              _PhotoButton(
+                initials: _initials(profile?.firstName, profile?.lastName),
+                photo: session.photo,
+                busy: _photoBusy,
+                onTap: _photoBusy ? null : _changePhoto,
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -257,6 +334,63 @@ String _initials(String? first, String? last) {
   final b = (last?.isNotEmpty ?? false) ? last![0] : '';
   final result = '$a$b'.toUpperCase();
   return result.isEmpty ? '?' : result;
+}
+
+/// The avatar with a camera badge — tap to take, choose or remove a photo.
+class _PhotoButton extends StatelessWidget {
+  final String initials;
+  final Uint8List? photo;
+  final bool busy;
+  final VoidCallback? onTap;
+  const _PhotoButton({required this.initials, required this.photo, required this.busy, required this.onTap});
+
+  static const _size = 72.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: photo == null ? 'Add profile photo' : 'Change profile photo',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: _size + 4,
+          height: _size + 4,
+          child: Stack(
+            children: [
+              SoftInitialAvatar(initials: initials, photo: photo, size: _size),
+              if (busy)
+                Container(
+                  width: _size,
+                  height: _size,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: SoftColors.ink.withValues(alpha: 0.35), shape: BoxShape.circle),
+                  child: const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: SoftColors.white),
+                  ),
+                ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: SoftColors.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: SoftColors.white, width: 2),
+                  ),
+                  child: const Icon(Icons.photo_camera_rounded, size: 14, color: SoftColors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _InfoCell extends StatelessWidget {

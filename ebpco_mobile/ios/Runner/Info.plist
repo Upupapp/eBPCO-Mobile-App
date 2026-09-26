@@ -31,7 +31,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>eBPCO needs access to your photos so you can attach a document or set a profile photo.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>eBPCO needs camera access so you can photograph a document to attach to your application.</string>
+	<string>eBPCO needs camera access so you can photograph a document to attach to your application, or take your profile photo.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

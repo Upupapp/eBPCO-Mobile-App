@@ -47,26 +47,42 @@ class SoftStatusPill extends StatelessWidget {
   }
 }
 
-/// Initials disc — primary red, white Inter 600, soft red glow.
+/// Initials disc — primary red, white Inter 600, soft red glow. Shows the
+/// citizen's profile photo instead when there is one.
 class SoftInitialAvatar extends StatelessWidget {
   final String initials;
   final double size;
+  final Uint8List? photo;
 
-  const SoftInitialAvatar({super.key, required this.initials, this.size = 46});
+  const SoftInitialAvatar({super.key, required this.initials, this.size = 46, this.photo});
 
   @override
   Widget build(BuildContext context) {
+    final image = photo;
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
+      clipBehavior: Clip.antiAlias,
       decoration: const BoxDecoration(color: SoftColors.primary, shape: BoxShape.circle, boxShadow: SoftShadows.avatar),
-      child: Text(
-        initials,
-        style: SoftType.cellValue.copyWith(color: SoftColors.white, fontWeight: FontWeight.w600, fontSize: size < 40 ? 13 : 16),
-      ),
+      child: image != null
+          ? Image.memory(
+              image,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              // A photo the phone cannot decode falls back to the initials.
+              errorBuilder: (_, _, _) => _initialsText(),
+            )
+          : _initialsText(),
     );
   }
+
+  Widget _initialsText() => Text(
+        initials,
+        style: SoftType.cellValue.copyWith(color: SoftColors.white, fontWeight: FontWeight.w600, fontSize: size < 40 ? 13 : 16),
+      );
 }
 
 enum SoftPillKind { primary, outline, danger, dangerSoft, text }

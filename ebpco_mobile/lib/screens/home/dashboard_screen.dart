@@ -83,7 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SoftInitialAvatar(initials: initials.isEmpty ? '?' : initials, size: 50),
+                  SoftInitialAvatar(initials: initials.isEmpty ? '?' : initials, photo: session.photo, size: 50),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
