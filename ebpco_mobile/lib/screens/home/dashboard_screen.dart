@@ -312,7 +312,7 @@ class _ApplicationRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(application.referenceNumber, style: SoftType.tileSub),
                 const SizedBox(height: 8),
-                StatusBadge(label: application.applicantStatus),
+                StatusBadge(label: application.statusLabel),
               ],
             ),
           ),

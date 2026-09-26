@@ -230,7 +230,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: StatusBadge(label: app.applicantStatus),
+          child: StatusBadge(label: app.statusLabel),
         ),
         const SizedBox(height: 12),
         Text(app.permitType, style: SoftType.h1),

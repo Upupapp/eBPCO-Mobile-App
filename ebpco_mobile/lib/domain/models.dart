@@ -104,6 +104,12 @@ class ApplicationSummary {
     required this.orderOfPayment,
   });
 
+  /// What the status pill reads — the portal's `applicantStatusLabel`. The
+  /// citizen's own withdrawal says "Cancelled"; filed under Rejected for
+  /// filters and counts, it would otherwise read as the Municipality
+  /// having turned them down.
+  String get statusLabel => lifecycleStatus == 'Cancelled' ? 'Cancelled' : applicantStatus;
+
   factory ApplicationSummary.fromJson(Map<String, dynamic> json) {
     final payment = json['payment'] as Map<String, dynamic>?;
     final orderOfPaymentJson = payment?['orderOfPayment'] as Map<String, dynamic>?;

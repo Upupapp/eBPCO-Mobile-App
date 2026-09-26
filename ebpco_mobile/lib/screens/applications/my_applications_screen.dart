@@ -114,7 +114,7 @@ class _Row extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(date, style: SoftType.cellLabel),
                 const SizedBox(height: 10),
-                StatusBadge(label: application.applicantStatus),
+                StatusBadge(label: application.statusLabel),
               ],
             ),
           ),
