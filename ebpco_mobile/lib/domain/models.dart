@@ -152,6 +152,42 @@ class TimelineEntry {
       );
 }
 
+/// The server's answer to "may this permit number be renewed or amended on
+/// this filing?" — see `CitizenApi.renewalCheck`. [message] is written for
+/// the citizen and shown under the permit number field as-is.
+class RenewalCheck {
+  final bool valid;
+  final String? reason;
+  final String? message;
+  final String? permitNumber;
+  final String? permitType;
+  final String? businessName;
+  final String? issuedDate;
+
+  const RenewalCheck({
+    required this.valid,
+    this.reason,
+    this.message,
+    this.permitNumber,
+    this.permitType,
+    this.businessName,
+    this.issuedDate,
+  });
+
+  factory RenewalCheck.fromJson(Map<String, dynamic> json) {
+    final permit = json['permit'] as Map<String, dynamic>?;
+    return RenewalCheck(
+      valid: json['valid'] as bool,
+      reason: json['reason'] as String?,
+      message: json['message'] as String?,
+      permitNumber: permit?['permitNumber'] as String?,
+      permitType: permit?['permitType'] as String?,
+      businessName: permit?['businessName'] as String?,
+      issuedDate: permit?['issuedDate'] as String?,
+    );
+  }
+}
+
 class RequirementDoc {
   final String code;
   final String label;

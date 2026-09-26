@@ -190,6 +190,24 @@ class CitizenApi {
   Future<PermitInfo> getPermit(String applicationId) async =>
       PermitInfo.fromJson(await _client.get<Map<String, dynamic>>('/applications/$applicationId/permit'));
 
+  /// `GET /applications/renewal-check` — whether [permitNumber] is a permit
+  /// eBPCO issued to this citizen, for [businessId], of [permitType]. The
+  /// wizard asks before leaving step 1 so a wrong number is caught under the
+  /// field. A mismatch is a 200 with `valid: false`, not an [ApiError]; filing
+  /// re-checks on the server either way.
+  Future<RenewalCheck> renewalCheck({
+    required String permitNumber,
+    required String permitType,
+    String? businessId,
+  }) async {
+    final query = Uri(queryParameters: {
+      'permitNumber': permitNumber,
+      'permitType': permitType,
+      'businessId': ?businessId,
+    }).query;
+    return RenewalCheck.fromJson(await _client.get<Map<String, dynamic>>('/applications/renewal-check?$query'));
+  }
+
   /// Files a new application, or a Draft when [saveAsDraft] is true.
   Future<ApplicationSummary> submit({
     required String permitType,

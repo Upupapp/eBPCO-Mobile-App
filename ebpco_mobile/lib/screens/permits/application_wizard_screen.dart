@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
@@ -69,7 +70,23 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   late String _permitType;
   String _applicationAction = 'New';
   String? _businessId;
-  final _priorPermitClaim = TextEditingController();
+
+  /// The permit a Renewal/Amendment is about. Checked against eBPCO's own
+  /// issued permits (`renewsPermitNumber`) unless [_paperPermit] — then sent
+  /// as the unverified `priorPermitClaim`, which the office judges from the
+  /// copy the citizen uploads in the Documents step.
+  final _permitNumber = TextEditingController();
+  bool _paperPermit = false;
+
+  /// Shown under the permit number field: the server's own reason a number
+  /// was refused, or a missing-number prompt.
+  String? _permitNumberError;
+
+  /// The permit the last successful check matched — shown back as a
+  /// confirmation, and reused so Save & Exit never saves an unchecked number.
+  RenewalCheck? _verifiedPermit;
+
+  static const _paperProofCode = 'prior-permit-proof';
 
   final _projectAddress = TextEditingController();
   final _scopeOfWork = TextEditingController();
@@ -119,7 +136,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     if (_draftId != null) Future.microtask(_applications.refresh);
     _scroll.dispose();
     for (final c in [
-      _priorPermitClaim,
+      _permitNumber,
       _projectAddress,
       _scopeOfWork,
       _professionalName,
@@ -137,7 +154,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _permitType = app.permitType;
       _applicationAction = app.applicationAction;
       _businessId = app.businessId;
-      _priorPermitClaim.text = app.priorPermitClaim ?? '';
+      _paperPermit = app.renewsPermitNumber == null && app.priorPermitClaim != null;
+      _permitNumber.text = app.renewsPermitNumber ?? app.priorPermitClaim ?? '';
+      if (app.renewsPermitNumber != null) {
+        // Already accepted by the server when the draft was saved.
+        _verifiedPermit = RenewalCheck(valid: true, permitNumber: app.renewsPermitNumber);
+      }
       _projectAddress.text = app.location ?? '';
       _scopeOfWork.text = app.form['scopeOfWork'] as String? ?? '';
       _professionalName.text = app.form['professionalName'] as String? ?? '';
@@ -177,7 +199,31 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     }
   }
 
-  bool get _needsPriorPermitClaim => _applicationAction != 'New';
+  bool get _needsPermitReference => _applicationAction != 'New';
+
+  String get _typedPermitNumber => _permitNumber.text.trim().toUpperCase();
+
+  /// Which of the two reference fields to send, and with what. On a draft
+  /// save an unchecked number is left out rather than saved, since the
+  /// server refuses one that doesn't match — the draft may name none yet.
+  Map<String, String?> _referenceFields() {
+    if (!_needsPermitReference) return {'renewsPermitNumber': null, 'priorPermitClaim': null};
+    final typed = _permitNumber.text.trim();
+    if (_paperPermit) {
+      return {'renewsPermitNumber': null, 'priorPermitClaim': typed.isEmpty ? null : typed};
+    }
+    final checked = _verifiedPermit?.permitNumber;
+    return {
+      'renewsPermitNumber': checked != null && checked == _typedPermitNumber ? checked : null,
+      'priorPermitClaim': null,
+    };
+  }
+
+  /// Anything that changes what the number must match makes the last check stale.
+  void _invalidatePermitCheck() {
+    _permitNumberError = null;
+    _verifiedPermit = null;
+  }
 
   Future<void> _toStep2() async {
     if (_businessId == null) {
@@ -193,9 +239,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       );
       return;
     }
-    if (_needsPriorPermitClaim && _priorPermitClaim.text.trim().isEmpty) {
+    if (_needsPermitReference && _permitNumber.text.trim().isEmpty) {
       setState(
-        () => _error =
+        () => _permitNumberError =
             'Please enter the permit number being ${_applicationAction == 'Renewal' ? 'renewed' : 'amended'}.',
       );
       return;
@@ -203,16 +249,33 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _permitNumberError = null;
     });
     try {
+      if (_needsPermitReference && !_paperPermit) {
+        final check = await _api.renewalCheck(
+          permitNumber: _typedPermitNumber,
+          permitType: _permitType,
+          businessId: _businessId,
+        );
+        if (!mounted) return;
+        if (!check.valid) {
+          setState(() {
+            _verifiedPermit = null;
+            _permitNumberError = check.message ?? 'That permit number could not be matched.';
+          });
+          return;
+        }
+        setState(() => _verifiedPermit = check);
+      }
+      final refs = _referenceFields();
       if (_draftId == null) {
         final created = await _api.submit(
           permitType: _permitType,
           applicationAction: _applicationAction,
           businessId: _businessId,
-          priorPermitClaim: _needsPriorPermitClaim
-              ? _priorPermitClaim.text.trim()
-              : null,
+          renewsPermitNumber: refs['renewsPermitNumber'],
+          priorPermitClaim: refs['priorPermitClaim'],
           saveAsDraft: true,
         );
         _draftId = created.id;
@@ -220,9 +283,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         await _api.updateDraft(_draftId!, {
           'applicationAction': _applicationAction,
           'businessId': _businessId,
-          'priorPermitClaim': _needsPriorPermitClaim
-              ? _priorPermitClaim.text.trim()
-              : null,
+          ...refs,
         });
       }
       await _loadRequirements();
@@ -377,8 +438,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     );
   }
 
-  bool get _requiredDocumentsComplete => _requirements
-      .where((r) => r.required)
+  /// The paper-permit proof only applies on the paper path, where it is
+  /// required (the server refuses to file the claim without it); on the
+  /// checked-number path there is nothing for it to prove, so it is hidden.
+  List<RequirementDoc> get _visibleRequirements => _requirements
+      .where((r) => r.code != _paperProofCode || (_needsPermitReference && _paperPermit))
+      .toList();
+
+  bool _isRequired(RequirementDoc doc) => doc.required || doc.code == _paperProofCode;
+
+  bool get _requiredDocumentsComplete => _visibleRequirements
+      .where(_isRequired)
       .every((r) => _attachedDocIds.containsKey(r.code));
 
   /// Links this wizard's new uploads to the draft (`PATCH` with
@@ -393,8 +463,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   Future<void> _toStep4() async {
     if (!_requiredDocumentsComplete) {
-      final missing = _requirements
-          .where((r) => r.required && !_attachedDocIds.containsKey(r.code))
+      final missing = _visibleRequirements
+          .where((r) => _isRequired(r) && !_attachedDocIds.containsKey(r.code))
           .length;
       setState(
         () =>
@@ -431,11 +501,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           await _api.updateDraft(_draftId!, {
             'applicationAction': _applicationAction,
             'businessId': _businessId,
-            'priorPermitClaim':
-                _needsPriorPermitClaim &&
-                    _priorPermitClaim.text.trim().isNotEmpty
-                ? _priorPermitClaim.text.trim()
-                : null,
+            ..._referenceFields(),
           });
         } else if (_step == 2) {
           await _api.updateDraft(_draftId!, {
@@ -695,6 +761,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             onChanged: (v) => setState(() {
               _businessId = v;
               _error = null;
+              _invalidatePermitCheck();
             }),
           ),
         const SizedBox(height: 18),
@@ -713,32 +780,90 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                   child: SoftFilterChip(
                     label: v,
                     selected: _applicationAction == v,
-                    onTap: () => setState(() => _applicationAction = v),
+                    onTap: () => setState(() {
+                      _applicationAction = v;
+                      _invalidatePermitCheck();
+                    }),
                   ),
                 ),
               ),
             ],
           ],
         ),
-        if (_needsPriorPermitClaim) ...[
+        if (_needsPermitReference) ...[
           const SizedBox(height: 18),
-          _label('Existing Permit Number'),
+          _label(_paperPermit ? 'Paper Permit Number' : 'Existing Permit Number'),
           TextField(
-            controller: _priorPermitClaim,
+            controller: _permitNumber,
             style: SoftType.field,
-            decoration: const InputDecoration(
-              hintText: 'e.g. BP-2020-000042, as printed on the permit',
+            textCapitalization: TextCapitalization.characters,
+            onChanged: (_) {
+              if (_permitNumberError != null || _verifiedPermit != null) {
+                setState(_invalidatePermitCheck);
+              }
+            },
+            decoration: InputDecoration(
+              hintText: 'e.g. BP-2025-000042, as printed on the permit',
+              errorText: _permitNumberError,
+              errorMaxLines: 5,
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            'The office confirms this from the permit itself — self-reported here.',
-            style: SoftType.cellLabel,
+          if (_verifiedPermit != null && _permitNumberError == null && !_paperPermit)
+            _verifiedPermitLine(_verifiedPermit!)
+          else
+            Text(
+              _paperPermit
+                  ? 'The office checks this against the copy of the permit you upload in the Documents step.'
+                  : 'Checked against permits eBPCO issued to the selected business before you can continue.',
+              style: SoftType.cellLabel,
+            ),
+          const SizedBox(height: 4),
+          CheckboxListTile(
+            value: _paperPermit,
+            onChanged: (v) => setState(() {
+              _paperPermit = v ?? false;
+              _invalidatePermitCheck();
+            }),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            activeColor: SoftColors.primary,
+            title: Text(
+              'My permit was issued on paper before eBPCO',
+              style: SoftType.body.copyWith(color: SoftColors.ink),
+            ),
+            subtitle: Text(
+              'It will not be found in the system. You will need to upload a copy of it.',
+              style: SoftType.cellLabel,
+            ),
           ),
         ],
         const SizedBox(height: 26),
         _errorLine(),
         SoftPillButton(label: 'Continue', busy: _busy, onPressed: _toStep2),
+      ],
+    );
+  }
+
+  Widget _verifiedPermitLine(RenewalCheck permit) {
+    final issued = permit.issuedDate == null ? null : DateTime.tryParse(permit.issuedDate!);
+    final parts = [
+      permit.permitType,
+      permit.businessName,
+      if (issued != null) 'issued ${DateFormat('MMM d, y').format(issued.toLocal())}',
+    ].whereType<String>().join(' · ');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.verified_rounded, size: 18, color: SoftColors.verifiedInk),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            parts.isEmpty ? 'Permit found.' : 'Permit found: $parts',
+            style: SoftType.cellLabel.copyWith(color: SoftColors.verifiedInk),
+          ),
+        ),
       ],
     );
   }
@@ -809,7 +934,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         const SizedBox(height: 6),
         Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
         const SizedBox(height: 16),
-        ..._requirements.map((doc) {
+        ..._visibleRequirements.map((doc) {
           final attached = _attachedDocIds[doc.code];
           final uploading = _uploadingCode == doc.code;
           return Padding(
@@ -842,8 +967,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                             Text(doc.label, style: SoftType.tileTitle),
                             const SizedBox(height: 6),
                             SoftStatusPill(
-                              label: doc.required ? 'Required' : 'Optional',
-                              tone: doc.required
+                              label: _isRequired(doc) ? 'Required' : 'Optional',
+                              tone: _isRequired(doc)
                                   ? SoftStatusTone.danger
                                   : SoftStatusTone.neutral,
                             ),
@@ -960,7 +1085,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               const Divider(height: 1, color: SoftColors.line),
               row(
                 'Documents attached',
-                '${_attachedDocIds.length} of ${_requirements.length}',
+                '${_visibleRequirements.where((r) => _attachedDocIds.containsKey(r.code)).length} of ${_visibleRequirements.length}',
               ),
             ],
           ),
