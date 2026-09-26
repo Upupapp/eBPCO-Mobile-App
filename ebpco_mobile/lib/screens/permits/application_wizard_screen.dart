@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
@@ -12,6 +14,7 @@ import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/document_library_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
@@ -83,6 +86,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   final Set<String> _attachedToServer = {};
   String? _uploadingCode;
 
+  /// Files already on record that can be reused (the portal's "or reuse").
+  /// Empty until loaded, or if loading fails — the control just stays hidden.
+  List<DocumentEntry> _library = [];
+
   bool get _isResuming => widget.draftId != null;
 
   @override
@@ -92,6 +99,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => context.read<BusinessesService>().refresh(),
     );
+    _loadLibrary();
     if (_isResuming) {
       _draftId = widget.draftId;
       _loadDraft();
@@ -252,6 +260,15 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     }
   }
 
+  Future<void> _loadLibrary() async {
+    try {
+      final docs = await _api.getMyDocuments();
+      if (mounted) setState(() => _library = reusableDocuments(docs));
+    } catch (_) {
+      // Same as the portal: without the list, reuse is simply not offered.
+    }
+  }
+
   Future<void> _pickAndUpload(RequirementDoc doc) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -260,15 +277,65 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     );
     final picked = result?.files.single;
     if (picked == null) return;
-
-    setState(() => _uploadingCode = doc.code);
-    try {
+    await _upload(doc, picked.name, () async {
       final bytes =
           picked.bytes ??
           (picked.path != null ? await File(picked.path!).readAsBytes() : null);
       if (bytes == null) throw const ApiError(0, null, true);
+      return bytes;
+    });
+  }
+
+  /// The portal's `reuseExisting`. There is no attach-by-reference route —
+  /// `POST /documents` always stores fresh bytes — so the chosen file's
+  /// content is fetched through its signed link and uploaded again against
+  /// this requirement, exactly like a new pick.
+  Future<void> _reuseFromLibrary(RequirementDoc doc) async {
+    final chosen = await showDocumentLibrarySheet(
+      context,
+      documents: _library,
+      forLabel: doc.label,
+      requirementCode: doc.code,
+    );
+    if (chosen == null || !mounted) return;
+    await _upload(
+      doc,
+      chosen.fileName,
+      () async {
+        final url = await _api.getDocumentContent(chosen.id);
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+        return response.bodyBytes;
+      },
+      failure: 'Could not reuse "${chosen.fileName}". Try again, or upload a new file.',
+    );
+  }
+
+  Future<void> _replace(RequirementDoc doc) async {
+    if (_library.isEmpty) return _pickAndUpload(doc);
+    final source = await showAttachSourceSheet(context, forLabel: doc.label);
+    if (!mounted) return;
+    switch (source) {
+      case AttachSource.device:
+        await _pickAndUpload(doc);
+      case AttachSource.library:
+        await _reuseFromLibrary(doc);
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _upload(
+    RequirementDoc doc,
+    String fileName,
+    Future<List<int>> Function() readBytes, {
+    String failure = 'Could not upload that file. Please try again.',
+  }) async {
+    setState(() => _uploadingCode = doc.code);
+    try {
+      final bytes = await readBytes();
       final documentId = await _api.uploadDocument(
-        fileName: picked.name,
+        fileName: fileName,
         label: doc.label,
         contentBase64: base64Encode(bytes),
         requirementCode: doc.code,
@@ -276,14 +343,20 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       if (!mounted) return;
       setState(() {
         _attachedDocIds[doc.code] = documentId;
-        _attachedFileNames[doc.code] = picked.name;
+        _attachedFileNames[doc.code] = fileName;
         // A "(N missing)" count from before this upload is now wrong.
         _error = null;
       });
+      // What was just uploaded can be reused for the next requirement.
+      unawaited(_loadLibrary());
     } on ApiError catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure)));
     } finally {
       if (mounted) setState(() => _uploadingCode = null);
     }
@@ -791,7 +864,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => _pickAndUpload(doc),
+                          onPressed: () => _replace(doc),
                           child: Text(
                             'Replace',
                             style: SoftType.sectionLink.copyWith(fontSize: 14),
@@ -799,13 +872,21 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                         ),
                       ],
                     )
-                  else
+                  else ...[
                     SoftPillButton(
                       label: 'Attach File',
                       kind: SoftPillKind.outline,
                       icon: Icons.attach_file_rounded,
                       onPressed: () => _pickAndUpload(doc),
                     ),
+                    if (_library.isNotEmpty)
+                      SoftPillButton(
+                        label: 'Choose from My Documents',
+                        kind: SoftPillKind.text,
+                        icon: Icons.folder_outlined,
+                        onPressed: () => _reuseFromLibrary(doc),
+                      ),
+                  ],
                 ],
               ),
             ),
