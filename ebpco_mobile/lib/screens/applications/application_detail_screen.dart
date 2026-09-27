@@ -41,6 +41,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   List<RequirementDoc> _requirements = [];
   bool _loading = true;
   bool _cancelling = false;
+  bool _sendingBack = false;
   String? _error;
   String? _busyDocumentKey;
 
@@ -181,6 +182,67 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     }
   }
 
+  /// Documents the office returned (Revision Required or Rejected) that no
+  /// newer upload replaces yet — the same test the server's
+  /// `returned-documents-replaced` precondition applies.
+  List<DocumentEntry> get _returnedNotReplaced => _documents
+      .where((d) =>
+          (d.reviewStatus == 'Revision Required' || d.reviewStatus == 'Rejected') &&
+          d.supersededByDocumentId == null)
+      .toList();
+
+  Future<void> _sendBack() async {
+    setState(() => _sendingBack = true);
+    try {
+      await _api.sendBackToOffice(widget.applicationId);
+      await _load();
+      if (!mounted) return;
+      context.read<ApplicationsService>().refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sent back to the office for evaluation.')),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+    } finally {
+      if (mounted) setState(() => _sendingBack = false);
+    }
+  }
+
+  Widget _sendBackCard() {
+    final outstanding = _returnedNotReplaced;
+    final ready = outstanding.isEmpty;
+    final names = outstanding.map((d) => d.label).join(', ');
+    return SoftCard(
+      color: ready ? SoftColors.verifiedSoft : SoftColors.pendingCream,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            ready ? 'Ready to send back' : 'The office returned this application',
+            style: SoftType.tileTitle,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            ready
+                ? 'Every returned document has been replaced. Send the application back so the office can continue evaluating it.'
+                : 'Replace ${outstanding.length == 1 ? 'the returned document' : 'the ${outstanding.length} returned documents'} '
+                    'below ($names), then send the application back to the office.',
+            style: SoftType.body.copyWith(color: SoftColors.ink),
+          ),
+          const SizedBox(height: 12),
+          SoftPillButton(
+            label: _sendingBack ? 'Sending…' : 'Send Back to the Office',
+            icon: Icons.send_rounded,
+            busy: _sendingBack,
+            onPressed: ready && !_sendingBack ? _sendBack : null,
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Required checklist items the server has no document for at all — a
   /// rejected one is not missing, it has its own Replace action.
   List<RequirementDoc> get _missingRequired =>
@@ -294,6 +356,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 )
                 .then((_) => _load()),
           ),
+          const SizedBox(height: 10),
+        ],
+        if (app.lifecycleStatus == 'Revision Required') ...[
+          _sendBackCard(),
           const SizedBox(height: 10),
         ],
         if (showPay) ...[

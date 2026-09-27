@@ -263,6 +263,16 @@ class CitizenApi {
     return ((body['removedMetadata'] as List<dynamic>?) ?? const []).cast<String>();
   }
 
+  /// `POST /applications/{id}/resubmit` — sends an application the office
+  /// returned for changes back to it (`Revision Required -> Under
+  /// Evaluation`). The server refuses while a returned document has no
+  /// replacement, and says so in the error's detail.
+  Future<void> sendBackToOffice(String applicationId) => _client.post(
+        '/applications/$applicationId/resubmit',
+        idempotencyKey: _client.newIdempotencyKey(),
+        body: const {},
+      );
+
   Future<void> cancelApplication(String applicationId, {String? reason}) => _client.post(
         '/applications/$applicationId/cancel',
         idempotencyKey: _client.newIdempotencyKey(),
