@@ -37,6 +37,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   List<DocumentEntry> _documents = [];
   bool _loading = true;
 
+  /// Showing what the citizen archived (ebpco-api 062) instead of My Documents.
+  bool _archived = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,7 +58,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final docs = await _api.getMyDocuments();
+      final docs = await _api.getMyDocuments(archived: _archived);
       if (!mounted) return;
       setState(() => _documents = docs);
     } on ApiError catch (e) {
@@ -69,30 +72,56 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   void _open(DocumentEntry doc) => Navigator.of(context)
       .push(MaterialPageRoute(builder: (_) => DocumentViewerScreen(documentId: doc.id, title: doc.label)));
 
+  void _say(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showArchived(bool archived) {
+    if (_archived == archived) return;
+    setState(() {
+      _archived = archived;
+      _documents = [];
+    });
+    _load();
+  }
+
+  /// Archives — never deletes. Nothing leaves an application it is filed on.
   Future<void> _delete(DocumentEntry doc) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove this document?'),
+        title: const Text('Archive this document?'),
         content: Text(
           doc.usedOnLabel != null
-              ? 'It will stay exactly as filed on ${doc.usedOnLabel} — this only stops it '
-                  'being offered for reuse elsewhere.'
-              : 'This removes it permanently — it is not attached to any application.',
+              ? 'It leaves My Documents and the list you reuse from, and stays exactly as filed on '
+                  '${doc.usedOnLabel}. Nothing is deleted — restore it any time from Archived.'
+              : 'It leaves My Documents and the list you reuse from. Nothing is deleted — restore it any time '
+                  'from Archived.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Remove')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Archive')),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
       await _api.deleteDocument(doc.id);
+      _say('"${doc.fileName}" archived. Restore it any time from Archived.');
       await _load();
     } on ApiError catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      _say(e.citizenMessage);
+    }
+  }
+
+  Future<void> _restore(DocumentEntry doc) async {
+    try {
+      await _api.restoreDocument(doc.id);
+      _say('"${doc.fileName}" is back in My Documents.');
+      await _load();
+    } on ApiError catch (e) {
+      _say(e.citizenMessage);
     }
   }
 
@@ -109,7 +138,13 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             : _documents.isEmpty
                 ? ListView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    children: const [SoftEmptyCard("You haven't uploaded any documents yet.")],
+                    children: [
+                      _ArchiveToggle(archived: _archived, onChanged: _showArchived),
+                      const SizedBox(height: 14),
+                      SoftEmptyCard(_archived
+                          ? 'You have not archived any documents.'
+                          : "You haven't uploaded any documents yet."),
+                    ],
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -122,11 +157,18 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                       if (i == 0) {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
-                          child: _SearchField(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _ArchiveToggle(archived: _archived, onChanged: _showArchived),
+                              const SizedBox(height: 12),
+                              _SearchField(
                             controller: _search,
                             resultLine: searching
                                 ? '${shown.length} of ${_documents.length} document${_documents.length == 1 ? '' : 's'}'
                                 : null,
+                              ),
+                            ],
                           ),
                         );
                       }
@@ -136,10 +178,36 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                       final doc = shown[i - 1];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _DocRow(doc: doc, onOpen: () => _open(doc), onDelete: () => _delete(doc)),
+                        child: _DocRow(
+                          doc: doc,
+                          archived: _archived,
+                          onOpen: () => _open(doc),
+                          onDelete: () => _archived ? _restore(doc) : _delete(doc),
+                        ),
                       );
                     },
                   ),
+      ),
+    );
+  }
+}
+
+/// My Documents, or what the citizen archived from it.
+class _ArchiveToggle extends StatelessWidget {
+  final bool archived;
+  final ValueChanged<bool> onChanged;
+  const _ArchiveToggle({required this.archived, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: Row(
+        children: [
+          SoftFilterChip(label: 'My Documents', selected: !archived, onTap: () => onChanged(false)),
+          const SizedBox(width: 8),
+          SoftFilterChip(label: 'Archived', selected: archived, onTap: () => onChanged(true)),
+        ],
       ),
     );
   }
@@ -186,8 +254,11 @@ class _SearchField extends StatelessWidget {
 class _DocRow extends StatelessWidget {
   final DocumentEntry doc;
   final VoidCallback onOpen;
+
+  /// Archive — or, in the Archived list, Restore.
   final VoidCallback onDelete;
-  const _DocRow({required this.doc, required this.onOpen, required this.onDelete});
+  final bool archived;
+  const _DocRow({required this.doc, required this.onOpen, required this.onDelete, this.archived = false});
 
   @override
   Widget build(BuildContext context) {
@@ -220,9 +291,9 @@ class _DocRow extends StatelessWidget {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded, color: SoftColors.muted),
             onSelected: (v) => v == 'open' ? onOpen() : onDelete(),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'open', child: Text('View')),
-              PopupMenuItem(value: 'delete', child: Text('Remove')),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'open', child: Text('View')),
+              PopupMenuItem(value: 'delete', child: Text(archived ? 'Restore' : 'Archive')),
             ],
           ),
         ],

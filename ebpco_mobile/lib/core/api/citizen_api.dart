@@ -440,8 +440,9 @@ class CitizenApi {
   /// `GET /documents/me` — every document this citizen has ever uploaded,
   /// attached or not. A document already doing duty on one application is
   /// still listed and still reusable on another.
-  Future<List<DocumentEntry>> getMyDocuments() async {
-    final body = await _client.get<List<dynamic>>('/documents/me');
+  Future<List<DocumentEntry>> getMyDocuments({bool archived = false}) async {
+    // `archived: true` (ebpco-api 062): what the citizen archived, to restore.
+    final body = await _client.get<List<dynamic>>(archived ? '/documents/me?archived=true' : '/documents/me');
     return body.map((e) => DocumentEntry.fromJson(e as Map<String, dynamic>)).toList();
   }
 
@@ -453,9 +454,19 @@ class CitizenApi {
   /// a browser handed a bare path has nowhere to go.
   String _absolute(String url) => Uri.parse(AppConfig.apiBaseUrl).resolve(url).toString();
 
-  /// Unattached: a real deletion. Attached: only stops it being offered
-  /// here again — it stays exactly as filed on its application.
+  /// Archives the file — never a deletion (ebpco-api 062): every copy leaves
+  /// My Documents and the reuse list, stays as filed on any application, and
+  /// [restoreDocument] brings it back.
   Future<void> deleteDocument(String documentId) => _client.delete('/documents/$documentId');
+
+  /// `POST /documents/{id}/restore` — an archived file back into My Documents.
+  Future<void> restoreDocument(String documentId) async {
+    await _client.post<dynamic>(
+      '/documents/$documentId/restore',
+      idempotencyKey: _client.newIdempotencyKey(),
+      body: const {},
+    );
+  }
 
   // ── Notifications ────────────────────────────────────────────────────
 
