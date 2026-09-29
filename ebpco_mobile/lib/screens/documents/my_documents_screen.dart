@@ -9,6 +9,7 @@ import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import 'document_viewer_screen.dart';
+import '../../widgets/message_bar.dart';
 
 /// Whether [doc] answers a search: every word typed must appear in the
 /// document's name, its file name, the application it is on, or its review
@@ -63,7 +64,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
       setState(() => _documents = docs);
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(e.citizenMessage));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,7 +75,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
 
   void _say(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(messageBar(message));
   }
 
   void _showArchived(bool archived) {

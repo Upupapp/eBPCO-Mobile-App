@@ -7,6 +7,7 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/message_bar.dart';
 
 /// Every contact value here comes from `domain/lgu_contact.dart`, itself
 /// transcribed from bundled LGU documents on the web portal — never a
@@ -55,10 +56,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     try {
       await Clipboard.setData(ClipboardData(text: email));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$email copied to your clipboard.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('$email copied to your clipboard.'));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not copy automatically — the address is $email.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('Could not copy automatically — the address is $email.'));
     }
   }
 

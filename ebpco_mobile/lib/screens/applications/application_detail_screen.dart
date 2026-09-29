@@ -23,6 +23,7 @@ import '../payments/payment_flow_screen.dart';
 import '../payments/payments_list_screen.dart';
 import '../permits/application_wizard_screen.dart';
 import 'permit_document_screen.dart';
+import '../../widgets/message_bar.dart';
 
 class ApplicationDetailScreen extends StatefulWidget {
   final String applicationId;
@@ -82,7 +83,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   void _toast(String message) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 6)));
+      .showSnackBar(messageBar(message));
 
   /// Picks a file, makes it something the server accepts (`readyForUpload`),
   /// hands it to [send] and shows what [send] reports — or why it could not
@@ -175,11 +176,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       await _load();
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application withdrawn.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('Application withdrawn.'));
     } on ApiError catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+          .showSnackBar(messageBar(e.citizenMessage));
     } finally {
       if (mounted) setState(() => _cancelling = false);
     }
@@ -202,11 +203,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sent back to the office for evaluation.')),
+        messageBar('Sent back to the office for evaluation.'),
       );
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(e.citizenMessage));
     } finally {
       if (mounted) setState(() => _sendingBack = false);
     }

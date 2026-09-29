@@ -14,6 +14,7 @@ import '../../widgets/password_checklist.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../auth/login_screen.dart';
+import '../../widgets/message_bar.dart';
 
 /// `POST /auth/password/change`. The server ends every session on the
 /// account when the password changes, so — like the portal — a success signs
@@ -71,7 +72,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       context.read<NotificationsService>().clear();
       context.read<BusinessesService>().clear();
       Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed. Sign in again with your new password.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('Password changed. Sign in again with your new password.'));
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.citizenMessage);

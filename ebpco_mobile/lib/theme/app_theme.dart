@@ -135,6 +135,9 @@ class AppTheme {
         backgroundColor: SoftColors.ink,
         contentTextStyle: SoftType.body.copyWith(color: Colors.white),
         behavior: SnackBarBehavior.floating,
+        // Every message can be closed early; its time on screen is readingTime.
+        showCloseIcon: true,
+        closeIconColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(SoftRadius.md)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: SoftColors.primary),

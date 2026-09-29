@@ -10,6 +10,7 @@ import '../../core/api/problem.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/message_bar.dart';
 
 /// Shows one of the citizen's own uploaded files inside the app — the same
 /// approach as the admin portal's Preview: ask the API for a short-lived
@@ -84,11 +85,11 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
       final url = await CitizenApi.instance.getDocumentContent(widget.documentId);
       final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No app on this phone could open the document.')));
+        ScaffoldMessenger.of(context).showSnackBar(messageBar('No app on this phone could open the document.'));
       }
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(e.citizenMessage));
     }
   }
 

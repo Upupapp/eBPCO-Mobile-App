@@ -24,6 +24,7 @@ import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
 import '../profile/legal_screen.dart';
+import '../../widgets/message_bar.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
 /// `application-wizard.page.ts`: 4 steps (Business & Type → Details →
@@ -442,7 +443,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   void _say(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+      messageBar(message),
     );
   }
 
@@ -542,11 +543,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     if (!mounted) return;
     context.read<ApplicationsService>().refresh();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Draft saved. Continue it any time from My Applications.',
-        ),
-      ),
+      messageBar('Draft saved. Continue it any time from My Applications.',),
     );
     Navigator.of(context).pop();
   }
@@ -569,9 +566,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Application submitted to the Municipality.'),
-        ),
+        messageBar('Application submitted to the Municipality.'),
       );
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(

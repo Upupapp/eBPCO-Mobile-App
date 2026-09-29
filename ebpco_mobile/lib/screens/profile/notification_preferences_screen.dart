@@ -7,6 +7,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/message_bar.dart';
 
 class NotificationPreferencesScreen extends StatefulWidget {
   const NotificationPreferencesScreen({super.key});
@@ -60,7 +61,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
       setState(() => _prefs = result);
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(e.citizenMessage));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

@@ -12,6 +12,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/message_bar.dart';
 
 /// `PATCH /businesses/:id` — the owner-editable subset only:
 /// registrationNumber/dateRegistered/status are not offered here at all,
@@ -79,11 +80,9 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
           .applications
           .where((a) => a.businessId == widget.business.id && !closed.contains(a.lifecycleStatus))
           .length;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(openApplications > 0
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(openApplications > 0
             ? 'Business details updated. Applications already filed are unchanged.'
-            : 'Business details updated.'),
-      ));
+            : 'Business details updated.'));
       Navigator.of(context).pop();
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);

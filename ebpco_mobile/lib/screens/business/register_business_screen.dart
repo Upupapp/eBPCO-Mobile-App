@@ -10,6 +10,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/message_bar.dart';
 
 class RegisterBusinessScreen extends StatefulWidget {
   const RegisterBusinessScreen({super.key});
@@ -59,7 +60,7 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
       if (!mounted) return;
       await context.read<BusinessesService>().refresh();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_name.text.trim()} registered with the Municipality.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('${_name.text.trim()} registered with the Municipality.'));
       Navigator.of(context).pop();
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);

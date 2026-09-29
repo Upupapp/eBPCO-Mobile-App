@@ -10,6 +10,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import 'edit_business_screen.dart';
+import '../../widgets/message_bar.dart';
 
 class BusinessDetailScreen extends StatefulWidget {
   final String businessId;
@@ -33,12 +34,10 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
       if (!mounted) return;
       await context.read<BusinessesService>().refresh();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(business.isActive ? 'Business deactivated. Reactivate it any time from this page.' : 'Business reactivated.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(business.isActive ? 'Business deactivated. Reactivate it any time from this page.' : 'Business reactivated.'));
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(e.citizenMessage));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

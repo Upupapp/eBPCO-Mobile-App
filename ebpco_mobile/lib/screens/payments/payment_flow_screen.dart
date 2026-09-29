@@ -18,6 +18,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import 'payments_list_screen.dart';
+import '../../widgets/message_bar.dart';
 
 /// `POST /applications/{id}/payments` — mirrors `payment-flow.page.ts`
 /// exactly: `amountCentavos` is always the real Order of Payment's own
@@ -122,11 +123,9 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
       );
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.settles
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(result.settles
             ? 'Payment submitted to the Municipality — this settles your balance, pending verification.'
-            : 'Payment submitted to the Municipality, pending verification.'),
-      ));
+            : 'Payment submitted to the Municipality, pending verification.'));
       // The screen that opened this (the application, or Payments) reloads on return.
       Navigator.of(context).pop(true);
     } on ApiError catch (e) {

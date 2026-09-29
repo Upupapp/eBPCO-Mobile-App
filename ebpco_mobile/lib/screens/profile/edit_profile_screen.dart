@@ -11,6 +11,7 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/message_bar.dart';
 
 /// `PATCH /me` — `null` clears a field, an omitted key leaves it alone,
 /// same rule the web portal's `buildRectification` enforces. Only the
@@ -100,7 +101,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
     if (patch.isEmpty) {
       setState(() => _error = null);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nothing to correct — those details are already on file.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('Nothing to correct — those details are already on file.'));
       return;
     }
     setState(() {
@@ -112,7 +113,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (!mounted) return;
       await context.read<SessionService>().refreshProfile();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent to the Municipality.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('Sent to the Municipality.'));
       Navigator.of(context).pop();
     } on ApiError catch (e) {
       if (!mounted) return;

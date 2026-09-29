@@ -24,6 +24,7 @@ import 'export_data_screen.dart';
 import 'help_support_screen.dart';
 import 'legal_screen.dart';
 import 'notification_preferences_screen.dart';
+import '../../widgets/message_bar.dart';
 
 /// The consequences a citizen must see before deleting their account —
 /// same content, same reasoning, as the web portals' delete-account popup:
@@ -52,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
-  void _say(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _say(String message) => ScaffoldMessenger.of(context).showSnackBar(messageBar(message));
 
   /// The portal's photo control: saved the moment it is chosen
   /// (`PUT /me/photo`), not staged behind Edit Profile's Save.
@@ -173,10 +174,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<NotificationsService>().clear();
       context.read<BusinessesService>().clear();
       Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your account has been erased, as far as the law allows.')));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar('Your account has been erased, as far as the law allows.'));
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.citizenMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(messageBar(e.citizenMessage));
     } finally {
       if (mounted) setState(() => _deleting = false);
     }

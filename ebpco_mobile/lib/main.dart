@@ -11,6 +11,7 @@ import 'services/notifications_service.dart';
 import 'services/push_service.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/message_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,7 +80,7 @@ class EbpcoMobileApp extends StatelessWidget {
     _notifications.clear();
     _businesses.clear();
     _navigatorKey.currentState?.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
-    _messengerKey.currentState?.showSnackBar(const SnackBar(content: Text('Your session has ended. Please sign in again.')));
+    _messengerKey.currentState?.showSnackBar(messageBar('Your session has ended. Please sign in again.'));
   }
 
   @override
