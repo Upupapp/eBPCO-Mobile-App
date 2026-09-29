@@ -17,7 +17,6 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
-import '../applications/application_detail_screen.dart';
 import 'payments_list_screen.dart';
 
 /// `POST /applications/{id}/payments` — mirrors `payment-flow.page.ts`
@@ -128,7 +127,8 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
             ? 'Payment submitted to the Municipality — this settles your balance, pending verification.'
             : 'Payment submitted to the Municipality, pending verification.'),
       ));
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: widget.applicationId)));
+      // The screen that opened this (the application, or Payments) reloads on return.
+      Navigator.of(context).pop(true);
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);
     } finally {
