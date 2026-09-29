@@ -12,6 +12,11 @@ void main() {
     expect(bfpFsisUrl, 'https://fsis.e-bfp.com');
   });
 
+  test('says how many permit types are offered: 15, without the two BFP types', () {
+    expect(offeredPermitTypeCount, allPermitTypes.length - retiredPermitTypes.length);
+    expect(offeredPermitTypeCount, 15);
+  });
+
   test('every type the catalog offers is a known permit type', () {
     for (final type in permitTypeGroups.expand((group) => group.types)) {
       expect(allPermitTypes, contains(type));

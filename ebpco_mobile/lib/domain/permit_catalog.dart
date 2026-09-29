@@ -37,6 +37,10 @@ const Set<String> retiredPermitTypes = {
   'FSIC for Occupancy Permit (BFP)',
 };
 
+/// How many permit types a citizen can apply for today: every one the
+/// catalog groups offer (the retired BFP types are not among them).
+int get offeredPermitTypeCount => permitTypeGroups.fold(0, (sum, group) => sum + group.types.length);
+
 /// Where the BFP's own online system is, for every notice that sends a
 /// citizen there.
 const String bfpFsisUrl = 'https://fsis.e-bfp.com';

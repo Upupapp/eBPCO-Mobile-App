@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/permit_catalog.dart';
 import '../../services/notifications_service.dart';
 import '../../services/push_service.dart';
 import '../../theme/app_haptics.dart';
@@ -65,7 +66,8 @@ class _RootShellState extends State<RootShell> {
       ServiceEntry(
         icon: Icons.add_circle_outline_rounded,
         title: 'Apply for a Permit',
-        subtitle: '17 permit types · start or resume',
+        // Counted from the catalog: the FSEC and FSIC left it (the BFP issues them).
+        subtitle: '$offeredPermitTypeCount permit types · start or resume',
         onTap: () => _push(const PermitCatalogScreen()),
       ),
       ServiceEntry(
