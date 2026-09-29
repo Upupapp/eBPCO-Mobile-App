@@ -22,12 +22,24 @@ const List<PermitTypeGroup> permitTypeGroups = [
     'Interior Design Permit',
   ]),
   PermitTypeGroup('Other Permits', ['Fencing Permit', 'Sign Permit', 'Excavation Permit']),
-  PermitTypeGroup('Certificates', [
-    'FSEC for Building Permit (BFP)',
-    'Certificate of Occupancy',
-    'FSIC for Occupancy Permit (BFP)',
-  ]),
+  // Not the FSEC or the FSIC: see [retiredPermitTypes].
+  PermitTypeGroup('Certificates', ['Certificate of Occupancy']),
 ];
+
+/// Still recognised on old records, no longer filed through eBPCO (ebpco-api
+/// migration 060 refuses them). The Bureau of Fire Protection issues the FSEC
+/// and the FSIC itself, through its own online system BFP-FSIS (BFP
+/// Memorandum Circular 2024-024). The citizen gets it there and uploads it
+/// with their Building Permit or Certificate of Occupancy, where the Fire
+/// Safety stage verifies it. Mirrors the portal's `RETIRED_PERMIT_TYPES`.
+const Set<String> retiredPermitTypes = {
+  'FSEC for Building Permit (BFP)',
+  'FSIC for Occupancy Permit (BFP)',
+};
+
+/// Where the BFP's own online system is, for every notice that sends a
+/// citizen there.
+const String bfpFsisUrl = 'https://fsis.e-bfp.com';
 
 const List<String> allPermitTypes = [
   'Building Permit',

@@ -1,7 +1,9 @@
 /// The office that reviews, and so heads the documents of, each permit type
 /// — the portal's `requirements-catalog.ts` reviewing offices, which pick a
 /// document's header (`agencyHeaderFor`): the Bureau of Fire Protection's for
-/// the BFP certificates, the Municipality's for everything else.
+/// the BFP certificates, the Municipality's for everything else. The BFP
+/// types are retired (the BFP issues them through BFP-FSIS) but stay here so
+/// an application filed before that still heads its documents correctly.
 String reviewingOfficeFor(String permitType) {
   switch (permitType) {
     case 'Zoning / Locational Clearance':
