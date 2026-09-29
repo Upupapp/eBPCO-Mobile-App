@@ -249,6 +249,11 @@ class DocumentEntry {
   final String? supersededByDocumentId;
   final String? expiresOn;
 
+  /// Every application a copy of this FILE is on (`GET /documents/me` shows
+  /// each file once, however many copies reuse made — ebpco-api 061). Empty
+  /// from an older server and on an application's own document list.
+  final List<String> usedOn;
+
   const DocumentEntry({
     required this.id,
     required this.label,
@@ -266,6 +271,7 @@ class DocumentEntry {
     this.supersedesDocumentId,
     this.supersededByDocumentId,
     this.expiresOn,
+    this.usedOn = const [],
   });
 
   factory DocumentEntry.fromJson(Map<String, dynamic> json) => DocumentEntry(
@@ -285,7 +291,17 @@ class DocumentEntry {
         supersedesDocumentId: json['supersedesDocumentId'] as String?,
         supersededByDocumentId: json['supersededByDocumentId'] as String?,
         expiresOn: json['expiresOn'] as String?,
+        usedOn: [
+          for (final application in (json['applications'] as List<dynamic>? ?? const []))
+            if ((application as Map<String, dynamic>)['referenceNumber'] is String) application['referenceNumber'] as String,
+        ],
       );
+
+  /// The applications this file is on, for one line; null when none.
+  String? get usedOnLabel {
+    final references = usedOn.isNotEmpty ? usedOn : [?applicationReference];
+    return references.isEmpty ? null : references.join(', ');
+  }
 
   /// The portal's `rejectionExplanation`: cited reason and remark together.
   String? get explanation {

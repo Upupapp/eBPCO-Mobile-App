@@ -16,7 +16,7 @@ import 'document_viewer_screen.dart';
 bool matchesDocumentSearch(DocumentEntry doc, String query) {
   final words = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
   if (words.isEmpty) return true;
-  final haystack = [doc.label, doc.fileName, doc.applicationReference ?? '', doc.reviewStatus ?? '']
+  final haystack = [doc.label, doc.fileName, doc.usedOnLabel ?? '', doc.reviewStatus ?? '']
       .join(' ')
       .toLowerCase();
   return words.every(haystack.contains);
@@ -75,8 +75,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Remove this document?'),
         content: Text(
-          doc.applicationId != null
-              ? 'It will stay exactly as filed on ${doc.applicationReference ?? 'its application'} — this only stops it '
+          doc.usedOnLabel != null
+              ? 'It will stay exactly as filed on ${doc.usedOnLabel} — this only stops it '
                   'being offered for reuse elsewhere.'
               : 'This removes it permanently — it is not attached to any application.',
         ),
@@ -206,9 +206,9 @@ class _DocRow extends StatelessWidget {
                 Text(doc.label, style: SoftType.tileTitle.copyWith(fontSize: 16)),
                 const SizedBox(height: 2),
                 Text(doc.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.tileSub),
-                if (doc.applicationReference != null) ...[
+                if (doc.usedOnLabel != null) ...[
                   const SizedBox(height: 2),
-                  Text('On ${doc.applicationReference}', style: SoftType.cellLabel),
+                  Text('Used on ${doc.usedOnLabel}', style: SoftType.cellLabel),
                 ],
                 if (doc.reviewStatus != null) ...[
                   const SizedBox(height: 10),

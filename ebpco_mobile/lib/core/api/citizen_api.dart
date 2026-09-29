@@ -379,6 +379,7 @@ class CitizenApi {
     required String contentBase64,
     String? applicationId,
     String? requirementCode,
+    String? reuseOf,
   }) async {
     final body = await _client.post<Map<String, dynamic>>(
       '/documents',
@@ -389,9 +390,49 @@ class CitizenApi {
         'contentBase64': contentBase64,
         'applicationId': ?applicationId,
         'requirementCode': ?requirementCode,
+        'reuseOf': ?reuseOf,
       },
     );
     return body['documentId'] as String;
+  }
+
+  /// [uploadDocument], using the citizen's own copy when they already have
+  /// this file. The server refuses a second upload of a file already in My
+  /// Documents (409 `duplicate-document`) and names their copy; where the
+  /// citizen's intent is plain — attach THIS file HERE — the same bytes are
+  /// sent again as a declared reuse of it. `reused` names the copy used, so
+  /// the screen can say so.
+  Future<({String documentId, ExistingDocument? reused})> uploadOrReuse({
+    required String fileName,
+    required String label,
+    required String contentBase64,
+    String? applicationId,
+    String? requirementCode,
+    String? reuseOf,
+  }) async {
+    try {
+      final id = await uploadDocument(
+        fileName: fileName,
+        label: label,
+        contentBase64: contentBase64,
+        applicationId: applicationId,
+        requirementCode: requirementCode,
+        reuseOf: reuseOf,
+      );
+      return (documentId: id, reused: null);
+    } on ApiError catch (error) {
+      final existing = duplicateOf(error);
+      if (existing == null || reuseOf != null) rethrow;
+      final id = await uploadDocument(
+        fileName: fileName,
+        label: label,
+        contentBase64: contentBase64,
+        applicationId: applicationId,
+        requirementCode: requirementCode,
+        reuseOf: existing.id,
+      );
+      return (documentId: id, reused: existing);
+    }
   }
 
   Future<Map<String, dynamic>> limits() => _client.get<Map<String, dynamic>>('/limits', auth: false);

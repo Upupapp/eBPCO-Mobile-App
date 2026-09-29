@@ -21,7 +21,23 @@ class Problem {
   final String? instance;
   final List<FieldError> fieldErrors;
 
-  const Problem({this.type, this.title, this.status, this.detail, this.instance, this.fieldErrors = const []});
+  /// A machine-readable refusal reason some routes add (RFC 7807 extension),
+  /// e.g. `duplicate-document`.
+  final String? reason;
+
+  /// The copy the citizen already has, on a `duplicate-document` refusal.
+  final ExistingDocument? existingDocument;
+
+  const Problem({
+    this.type,
+    this.title,
+    this.status,
+    this.detail,
+    this.instance,
+    this.fieldErrors = const [],
+    this.reason,
+    this.existingDocument,
+  });
 
   factory Problem.fromJson(Map<String, dynamic> json) {
     final rawErrors = (json['errors'] ?? json['fieldErrors']) as List<dynamic>?;
@@ -32,8 +48,40 @@ class Problem {
       detail: json['detail'] as String?,
       instance: json['instance'] as String?,
       fieldErrors: rawErrors?.map((e) => FieldError.fromJson(e as Map<String, dynamic>)).toList() ?? const [],
+      reason: json['reason'] as String?,
+      existingDocument: json['existingDocument'] is Map<String, dynamic>
+          ? ExistingDocument.fromJson(json['existingDocument'] as Map<String, dynamic>)
+          : null,
     );
   }
+}
+
+/// The copy of a file a citizen already has, named when the server refuses a
+/// second upload of the same file (ebpco-api 061). Mirrors the portal's
+/// `ExistingDocument`.
+class ExistingDocument {
+  final String id;
+  final String fileName;
+  final String label;
+
+  /// The application it is attached to, or null when it sits unattached in My Documents.
+  final String? applicationReference;
+
+  const ExistingDocument({required this.id, required this.fileName, required this.label, this.applicationReference});
+
+  factory ExistingDocument.fromJson(Map<String, dynamic> json) => ExistingDocument(
+        id: json['id'] as String,
+        fileName: json['fileName'] as String? ?? '',
+        label: json['label'] as String? ?? '',
+        applicationReference: json['applicationReference'] as String?,
+      );
+}
+
+/// The copy named by a 409 `duplicate-document` refusal; null for any other error.
+ExistingDocument? duplicateOf(Object error) {
+  if (error is! ApiError || error.status != 409) return null;
+  final problem = error.problem;
+  return problem?.reason == 'duplicate-document' ? problem?.existingDocument : null;
 }
 
 class ApiError implements Exception {

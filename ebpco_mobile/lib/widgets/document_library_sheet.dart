@@ -135,9 +135,9 @@ class _LibraryRow extends StatelessWidget {
                   Text(doc.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.tileTitle.copyWith(fontSize: 15)),
                   const SizedBox(height: 2),
                   Text('Uploaded $_uploaded · as ${doc.label}', style: SoftType.tileSub),
-                  if (doc.applicationReference != null) ...[
+                  if (doc.usedOnLabel != null) ...[
                     const SizedBox(height: 2),
-                    Text('On ${doc.applicationReference}', style: SoftType.cellLabel),
+                    Text('Used on ${doc.usedOnLabel}', style: SoftType.cellLabel),
                   ],
                   if (doc.reviewStatus != null) ...[
                     const SizedBox(height: 8),

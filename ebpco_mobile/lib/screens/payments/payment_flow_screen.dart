@@ -103,12 +103,14 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
     try {
       String? proofDocumentId;
       if (_method == 'Bank Transfer' && _proofBytes != null) {
-        proofDocumentId = await _api.uploadDocument(
+        // A retry after a payment that failed past its upload sends the same
+        // receipt again: that copy is used rather than the payment stopped.
+        proofDocumentId = (await _api.uploadOrReuse(
           fileName: _proofFileName!,
           label: 'Proof of Payment',
           contentBase64: base64Encode(_proofBytes!),
           applicationId: widget.applicationId,
-        );
+        )).documentId;
       }
       final reference = _method == 'Bank Transfer' ? _proofFileName! : 'ONSITE-${DateTime.now().millisecondsSinceEpoch}';
       final result = await _api.submitPayment(

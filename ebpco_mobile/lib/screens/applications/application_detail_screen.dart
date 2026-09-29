@@ -125,14 +125,17 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   /// The portal's `attachMissing`: first-time upload for a required document
   /// nothing has been sent for yet, attached to this application.
   Future<void> _attachMissing(RequirementDoc req) => _sendPicked(req.code, (file) async {
-        await _api.uploadDocument(
+        final upload = await _api.uploadOrReuse(
           fileName: file.fileName,
           label: req.label,
           contentBase64: base64Encode(file.bytes),
           applicationId: widget.applicationId,
           requirementCode: req.code,
         );
-        return '"${req.label}" sent.';
+        final reused = upload.reused;
+        return reused == null
+            ? '"${req.label}" sent.'
+            : '"${req.label}" sent, using the copy of "${reused.fileName}" already in My Documents.';
       });
 
   /// The portal's `canCancel`: the applicant's own `-> Cancelled` transitions,

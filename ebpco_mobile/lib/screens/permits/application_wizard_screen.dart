@@ -379,6 +379,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         return (bytes: response.bodyBytes, fileName: chosen.fileName);
       },
       failure: 'Could not reuse "${chosen.fileName}". Try again, or upload a new file.',
+      reuseOf: chosen.id,
     );
   }
 
@@ -401,16 +402,23 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     String fileName,
     Future<ReadyUpload> Function() ready, {
     String failure = 'Could not upload that file. Please try again.',
+    String? reuseOf,
   }) async {
     setState(() => _uploadingCode = doc.code);
     try {
       final file = await ready();
-      final documentId = await _api.uploadDocument(
+      final upload = await _api.uploadOrReuse(
         fileName: file.fileName,
         label: doc.label,
         contentBase64: base64Encode(file.bytes),
         requirementCode: doc.code,
+        reuseOf: reuseOf,
       );
+      final documentId = upload.documentId;
+      if (upload.reused != null) {
+        _say('You already had "${upload.reused!.fileName}" in My Documents, so that copy was used. '
+            'Next time, choose it from your documents instead of the device.');
+      }
       if (!mounted) return;
       setState(() {
         _attachedDocIds[doc.code] = documentId;
