@@ -108,7 +108,18 @@ class ApplicationSummary {
   /// citizen's own withdrawal says "Cancelled"; filed under Rejected for
   /// filters and counts, it would otherwise read as the Municipality
   /// having turned them down.
-  String get statusLabel => lifecycleStatus == 'Cancelled' ? 'Cancelled' : applicantStatus;
+  /// The word on the badge, the same as the citizen portal's `applicantStatusLabel`: the coarse
+  /// status, except where it would say the wrong thing — a completed application read "Ready for
+  /// Release", and one waiting on the citizen read as the office still working on it.
+  String get statusLabel => switch (lifecycleStatus) {
+        'Cancelled' => 'Cancelled',
+        'Released' => 'Released',
+        'Completed' => 'Completed',
+        'Payment Verified' || 'For Approval' => 'Payment Verified',
+        'Revision Required' => 'Revision Required',
+        'Assessed' => 'Awaiting Payment',
+        _ => applicantStatus,
+      };
 
   factory ApplicationSummary.fromJson(Map<String, dynamic> json) {
     final payment = json['payment'] as Map<String, dynamic>?;

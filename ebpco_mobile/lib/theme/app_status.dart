@@ -179,6 +179,12 @@ final Map<String, StatusStyle> _statusStyleByLabel = {
   'Payment Verification': const StatusStyle(AppColors.warning100, AppColors.warningText),
   'Approved': const StatusStyle(AppColors.success100, AppColors.successText),
   'Ready for Release': const StatusStyle(AppColors.success100, AppColors.successText),
+  'Released': const StatusStyle(AppColors.success100, AppColors.successText),
+  'Completed': const StatusStyle(AppColors.success100, AppColors.successText),
+  'Payment Verified': const StatusStyle(AppColors.success100, AppColors.successText),
+  'Accepted': const StatusStyle(AppColors.success100, AppColors.successText),
+  'Revision Required': const StatusStyle(AppColors.warning100, AppColors.warningText),
+  'Awaiting Payment': const StatusStyle(AppColors.warning100, AppColors.warningText),
   'Rejected': const StatusStyle(AppColors.danger100, AppColors.dangerText),
   'Cancelled': const StatusStyle(AppColors.gray100, AppColors.gray700),
 };
