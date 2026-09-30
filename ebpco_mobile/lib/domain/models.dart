@@ -323,6 +323,13 @@ class DocumentEntry {
   /// The portal's `canResubmit`: the newest version, and the office asked.
   bool get canReplace =>
       supersededByDocumentId == null && (reviewStatus == 'Rejected' || reviewStatus == 'Revision Required');
+
+  /// While the application is returned for revision the office's remarks may
+  /// name a document it did not flag ("the Valid ID is expired"), so any
+  /// document not yet accepted can be replaced, as the server allows. The
+  /// portal's application-documents `canReplace`.
+  bool canReplaceWhile({required bool returned}) =>
+      canReplace || (returned && supersededByDocumentId == null && reviewStatus != 'Accepted');
 }
 
 /// The portal's `groupDocumentChains`: each current document with the

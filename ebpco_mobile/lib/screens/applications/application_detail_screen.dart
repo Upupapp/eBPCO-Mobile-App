@@ -455,6 +455,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 superseded: chain.superseded,
                 replacing: _busyDocumentKey == chain.current.id,
                 onReplace: _busyDocumentKey != null ? null : () => _replace(chain.current),
+                returned: app.lifecycleStatus == 'Revision Required',
               ),
             ),
         const SizedBox(height: 24),
@@ -516,7 +517,11 @@ class _DocumentChainCard extends StatefulWidget {
   final List<DocumentEntry> superseded;
   final bool replacing;
   final VoidCallback? onReplace;
-  const _DocumentChainCard({required this.current, required this.superseded, required this.replacing, required this.onReplace});
+  /// The application is back with the citizen for revision.
+  final bool returned;
+  const _DocumentChainCard({
+    required this.current, required this.superseded, required this.replacing, required this.onReplace, required this.returned,
+  });
 
   @override
   State<_DocumentChainCard> createState() => _DocumentChainCardState();
@@ -592,7 +597,7 @@ class _DocumentChainCardState extends State<_DocumentChainCard> {
           Row(
             children: [
               Expanded(child: SoftPillButton(label: 'View', kind: SoftPillKind.outline, icon: Icons.visibility_outlined, onPressed: () => _view(doc))),
-              if (doc.canReplace) ...[
+              if (doc.canReplaceWhile(returned: widget.returned)) ...[
                 const SizedBox(width: 10),
                 Expanded(
                   child: SoftPillButton(label: 'Replace', icon: Icons.upload_file_rounded, busy: widget.replacing, onPressed: widget.onReplace),
