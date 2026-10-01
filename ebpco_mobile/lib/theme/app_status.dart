@@ -33,6 +33,11 @@ enum LifecycleStatus {
   expired,
 }
 
+/// The five steps an application detail page draws, in order. Coarser than
+/// the 19 lifecycle statuses on purpose: a citizen asks "how far along am
+/// I", not which desk has the file. See [LifecycleStatusX.journeyStep].
+const List<String> journeySteps = ['Apply', 'Review', 'Payment', 'Approval', 'Release'];
+
 extension LifecycleStatusX on LifecycleStatus {
   String get label => switch (this) {
         LifecycleStatus.draft => 'Draft',
@@ -79,6 +84,28 @@ extension LifecycleStatusX on LifecycleStatus {
         LifecycleStatus.rejected => 'Your application was rejected. See remarks for details.',
         LifecycleStatus.cancelled => 'This application was cancelled.',
         LifecycleStatus.expired => 'This application has expired.',
+      };
+
+  /// Where the application stands on the citizen's road ([journeySteps]):
+  /// the index of the step under way, [journeySteps].length once the permit
+  /// is out, and null once the application is closed without one (rejected,
+  /// withdrawn, expired), where the road no longer applies. Revision Required
+  /// stays at Review: it is the office's review, waiting on the citizen.
+  int? get journeyStep => switch (this) {
+        LifecycleStatus.draft => 0,
+        LifecycleStatus.submitted ||
+        LifecycleStatus.received ||
+        LifecycleStatus.documentVerification ||
+        LifecycleStatus.underEvaluation ||
+        LifecycleStatus.revisionRequired => 1,
+        LifecycleStatus.assessed ||
+        LifecycleStatus.paymentSubmitted ||
+        LifecycleStatus.paymentUnderVerification ||
+        LifecycleStatus.paymentVerified => 2,
+        LifecycleStatus.forApproval => 3,
+        LifecycleStatus.approved || LifecycleStatus.permitGenerated || LifecycleStatus.readyForRelease => 4,
+        LifecycleStatus.released || LifecycleStatus.completed => journeySteps.length,
+        LifecycleStatus.rejected || LifecycleStatus.cancelled || LifecycleStatus.expired => null,
       };
 
   static LifecycleStatus fromLabel(String label) {

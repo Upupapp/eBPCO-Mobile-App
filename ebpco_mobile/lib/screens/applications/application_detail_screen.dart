@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -288,11 +289,30 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   List<RequirementDoc> get _missingRequired =>
       _requirements.where((r) => r.required && r.documentIds.isEmpty).toList();
 
+  /// The reference is what a citizen reads out at the counter or types into
+  /// a message, so it copies with a tap.
+  void _copyReference(String reference) {
+    Clipboard.setData(ClipboardData(text: reference));
+    _toast('Reference number copied.');
+  }
+
+  void _open(Widget page, {bool reloadAfter = false}) {
+    final pushed = Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    if (reloadAfter) pushed.then((_) => _load());
+  }
+
+  static String _day(String? iso) {
+    if (iso == null) return 'Not yet';
+    final when = DateTime.tryParse(iso)?.toLocal();
+    return when == null ? iso : DateFormat('MMM d, yyyy').format(when);
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = _application;
     return SoftPageScaffold(
-      title: app?.referenceNumber ?? 'Application',
+      // The reference is on the header card, with its copy button.
+      title: 'Application',
       body: _loading && app == null
           ? const Center(child: CircularProgressIndicator())
           : _error != null && app == null
@@ -309,6 +329,9 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   Widget _body(ApplicationSummary app) {
+    final lifecycle = LifecycleStatusX.fromLabel(app.lifecycleStatus);
+    final step = lifecycle.journeyStep;
+    final settled = step == null || step >= journeySteps.length;
     final showPay =
         app.orderOfPayment != null &&
         (app.paymentStatus == 'Not Yet Available' ||
@@ -316,148 +339,90 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     final showPermit =
         app.applicantStatus == 'Approved' ||
         app.applicantStatus == 'Ready for Release';
-    final cells = <(String, String)>[
-      ('Application type', app.applicationAction),
-      ('Payment', app.paymentStatus),
-      ('Submitted', app.dateSubmitted?.substring(0, 10) ?? 'Not yet'),
-      ('Last updated', app.updatedAt.substring(0, 10)),
+
+    // What the citizen can do now. The first is the page's one main button.
+    final actions = <(String, IconData, VoidCallback)>[
+      if (lifecycle == LifecycleStatus.draft)
+        ('Continue Application', Icons.edit_outlined,
+            () => _open(ApplicationWizardScreen(draftId: app.id), reloadAfter: true)),
+      if (showPay)
+        ('Pay Now', Icons.payments_outlined,
+            () => _open(PaymentFlowScreen(applicationId: app.id), reloadAfter: true)),
+      if (showPermit)
+        ('View Permit', Icons.verified_outlined,
+            () => _open(PermitDocumentScreen(applicationId: app.id, applicationReference: app.referenceNumber))),
     ];
 
+    final IconData nextIcon = step == null
+        ? Icons.do_not_disturb_on_outlined
+        : lifecycle == LifecycleStatus.draft
+        ? Icons.edit_note_rounded
+        : lifecycle == LifecycleStatus.revisionRequired
+        ? Icons.assignment_return_outlined
+        : showPay
+        ? Icons.payments_outlined
+        : showPermit || settled
+        ? Icons.verified_outlined
+        : Icons.hourglass_top_rounded;
+
+    final details = <(IconData, String, String)>[
+      (Icons.category_outlined, 'Application type', app.applicationAction),
+      if (app.renewsPermitNumber case final permit?)
+        (Icons.autorenew_rounded, app.applicationAction == 'Renewal' ? 'Renewing permit' : 'Amending permit', permit),
+      (Icons.account_balance_wallet_outlined, 'Payment', app.paymentStatus),
+      (Icons.send_outlined, 'Submitted', _day(app.dateSubmitted)),
+      (Icons.update_rounded, 'Last updated', _day(app.updatedAt)),
+    ];
+
+    final chains = groupDocumentChains(_documents);
+    final missing = !const {'Draft', 'Cancelled', 'Rejected', 'Expired', 'Released', 'Completed'}.contains(app.lifecycleStatus)
+        ? _missingRequired
+        : const <RequirementDoc>[];
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: StatusBadge(label: app.statusLabel),
-        ),
-        const SizedBox(height: 12),
-        Text(app.permitType, style: SoftType.h1),
-        const SizedBox(height: 4),
-        Text(app.referenceNumber, style: SoftType.body.copyWith(fontSize: 15)),
-        if (app.businessName != null || app.location != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            [app.businessName, app.location].whereType<String>().join(' · '),
-            style: SoftType.body,
-          ),
-        ],
+        _Header(app: app, step: step, onCopyReference: () => _copyReference(app.referenceNumber)),
         const SizedBox(height: 16),
-        SoftCard(
-          color: SoftColors.primaryWash,
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SoftIconTile(
-                icon: Icons.info_outline_rounded,
-                background: SoftColors.white,
-                size: 40,
+        _NextStepCard(
+          icon: nextIcon,
+          eyebrow: settled ? 'Status' : 'What happens next',
+          muted: step == null,
+          text: lifecycle.nextStep,
+          actions: [
+            for (final (i, action) in actions.indexed)
+              SoftPillButton(
+                label: action.$1,
+                icon: action.$2,
+                kind: i == 0 ? SoftPillKind.primary : SoftPillKind.outline,
+                onPressed: action.$3,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Next step',
-                      style: SoftType.cellLabel.copyWith(fontSize: 13),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      LifecycleStatusX.fromLabel(app.lifecycleStatus).nextStep,
-                      style: SoftType.body.copyWith(color: SoftColors.ink),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
-        const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 2.1,
-          children: [for (final c in cells) _Cell(label: c.$1, value: c.$2)],
-        ),
-        const SizedBox(height: 20),
-        if (app.lifecycleStatus == 'Draft') ...[
-          SoftPillButton(
-            label: 'Continue Application',
-            icon: Icons.edit_outlined,
-            onPressed: () => Navigator.of(context)
-                .push(
-                  MaterialPageRoute(
-                    builder: (_) => ApplicationWizardScreen(draftId: app.id),
-                  ),
-                )
-                .then((_) => _load()),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (app.lifecycleStatus == 'Revision Required') ...[
+        if (lifecycle == LifecycleStatus.revisionRequired) ...[
+          const SizedBox(height: 12),
           _sendBackCard(),
-          const SizedBox(height: 10),
         ],
-        if (showPay) ...[
-          SoftPillButton(
-            label: 'Pay Now',
-            icon: Icons.payments_outlined,
-            onPressed: () => Navigator.of(context)
-                .push(
-                  MaterialPageRoute(
-                    builder: (_) => PaymentFlowScreen(applicationId: app.id),
-                  ),
-                )
-                .then((_) => _load()),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (showPermit) ...[
-          SoftPillButton(
-            label: 'View Permit',
-            kind: SoftPillKind.outline,
-            icon: Icons.verified_outlined,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PermitDocumentScreen(
-                  applicationId: app.id,
-                  applicationReference: app.referenceNumber,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (_canCancel) ...[
-          SoftPillButton(
-            label: _cancelling ? 'Withdrawing…' : 'Withdraw Application',
-            kind: SoftPillKind.dangerSoft,
-            busy: _cancelling,
-            onPressed: _cancelling ? null : _cancel,
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (app.orderOfPayment != null) ...[
-          const SizedBox(height: 14),
-          _AssessmentCard(order: app.orderOfPayment!, paid: app.paymentStatus == 'Paid'),
-        ],
-        if (!const {'Draft', 'Cancelled', 'Rejected', 'Expired', 'Released', 'Completed'}.contains(app.lifecycleStatus) &&
-            _missingRequired.isNotEmpty) ...[
-          const SizedBox(height: 14),
+        if (missing.isNotEmpty) ...[
+          const SizedBox(height: 12),
           SoftCard(
             color: SoftColors.dangerSoft,
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Missing Required Documents', style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600, color: SoftColors.danger)),
-                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 20, color: SoftColors.danger),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Missing Required Documents', style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600, color: SoftColors.danger)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 Text('The Municipality still needs these to continue reviewing your application.', style: SoftType.body.copyWith(color: SoftColors.ink)),
-                for (final req in _missingRequired) ...[
+                for (final req in missing) ...[
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -483,12 +448,35 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             ),
           ),
         ],
-        const SizedBox(height: 24),
-        const SoftSectionHeader(title: 'Documents'),
-        if (_documents.isEmpty)
-          const SoftEmptyCard('No documents attached yet.')
+        if (app.orderOfPayment != null) ...[
+          const SizedBox(height: 12),
+          _AssessmentCard(order: app.orderOfPayment!, paid: app.paymentStatus == 'Paid'),
+        ],
+        const SizedBox(height: 26),
+        const _SectionTitle('Details'),
+        SoftCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            children: [
+              for (final (i, row) in details.indexed) ...[
+                if (i > 0) const Divider(height: 1, thickness: 1, color: SoftColors.line, indent: 32),
+                _DetailRow(icon: row.$1, label: row.$2, value: row.$3),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 26),
+        _SectionTitle('Documents', count: chains.isEmpty ? null : chains.length),
+        if (chains.isEmpty)
+          _EmptySection(
+            icon: Icons.folder_open_rounded,
+            title: 'No documents yet',
+            message: lifecycle == LifecycleStatus.draft
+                ? 'Attach them when you continue your application.'
+                : 'Files sent with this application show here.',
+          )
         else
-          for (final chain in groupDocumentChains(_documents))
+          for (final chain in chains)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _DocumentChainCard(
@@ -496,16 +484,16 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 superseded: chain.superseded,
                 replacing: _busyDocumentKey == chain.current.id,
                 onReplace: _busyDocumentKey != null ? null : () => _replace(chain.current),
-                returned: app.lifecycleStatus == 'Revision Required',
+                returned: lifecycle == LifecycleStatus.revisionRequired,
               ),
             ),
-        const SizedBox(height: 24),
-        const SoftSectionHeader(title: 'Timeline'),
+        const SizedBox(height: 26),
+        const _SectionTitle('Timeline'),
         if (_timeline.isEmpty)
-          const SoftEmptyCard('No activity yet.')
+          const _EmptySection(icon: Icons.timeline_rounded, title: 'No activity yet', message: 'Each step the office takes shows here.')
         else
           SoftCard(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 4),
             child: Column(
               children: [
                 for (final (i, t) in _timeline.reversed.indexed)
@@ -517,31 +505,360 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
               ],
             ),
           ),
+        if (_canCancel) ...[
+          const SizedBox(height: 28),
+          Center(
+            child: TextButton.icon(
+              onPressed: _cancelling ? null : _cancel,
+              style: TextButton.styleFrom(
+                foregroundColor: SoftColors.danger,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                textStyle: SoftType.button,
+              ),
+              icon: _cancelling
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: SoftColors.danger))
+                  : const Icon(Icons.cancel_outlined, size: 18),
+              label: Text(_cancelling ? 'Withdrawing…' : 'Withdraw Application'),
+            ),
+          ),
+        ],
       ],
     );
   }
 }
 
-class _Cell extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Cell({required this.label, required this.value});
+/// The page's top: what this application is, its status and reference, and
+/// how far along it is — the dashboard's red feature card, so the screen
+/// opens on the one thing a citizen came to check.
+class _Header extends StatelessWidget {
+  final ApplicationSummary app;
+  final int? step;
+  final VoidCallback onCopyReference;
+  const _Header({required this.app, required this.step, required this.onCopyReference});
+
+  static const _soft = Color(0xE0FFFFFF);
+  static const _faint = Color(0x33FFFFFF);
+
+  Widget _meta(IconData icon, String text) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: _soft),
+          const SizedBox(width: 5),
+          Flexible(child: Text(text, style: SoftType.tileSub.copyWith(color: _soft, fontSize: 13.5))),
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final status = statusStyleForLabel(app.statusLabel);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        gradient: SoftColors.primaryGradient,
+        borderRadius: BorderRadius.circular(SoftRadius.lg),
+        boxShadow: SoftShadows.feature,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(color: _faint, borderRadius: BorderRadius.circular(SoftRadius.sm)),
+                child: const Icon(Icons.apartment_rounded, color: SoftColors.white, size: 22),
+              ),
+              const Spacer(),
+              // White, so the status keeps its own color on the red.
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(color: SoftColors.white, borderRadius: BorderRadius.circular(SoftRadius.pill)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 7, height: 7, decoration: BoxDecoration(color: status.foreground, shape: BoxShape.circle)),
+                    const SizedBox(width: 6),
+                    Text(app.statusLabel, style: SoftType.cellLabel.copyWith(color: status.foreground, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(app.permitType, style: SoftType.h1.copyWith(color: SoftColors.white, fontSize: 24)),
+          const SizedBox(height: 4),
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onCopyReference,
+              borderRadius: BorderRadius.circular(SoftRadius.sm),
+              child: Semantics(
+                button: true,
+                label: 'Reference ${app.referenceNumber}. Tap to copy.',
+                excludeSemantics: true,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        app.referenceNumber,
+                        style: SoftType.cellValue.copyWith(
+                          color: _soft,
+                          fontSize: 14,
+                          letterSpacing: 0.2,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.copy_rounded, size: 14, color: _soft),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (app.businessName != null || app.location != null) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                if (app.businessName case final business?) _meta(Icons.storefront_outlined, business),
+                if (app.location case final place?) _meta(Icons.place_outlined, place),
+              ],
+            ),
+          ],
+          if (step case final at?) ...[
+            const SizedBox(height: 18),
+            const Divider(height: 1, thickness: 1, color: _faint),
+            const SizedBox(height: 16),
+            _StepTracker(step: at),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// [journeySteps] as dots on a line: done ticked, the current one ringed,
+/// the rest hollow. Drawn on the header's red.
+class _StepTracker extends StatelessWidget {
+  final int step;
+  const _StepTracker({required this.step});
+
+  static const _faint = Color(0x4DFFFFFF);
+
+  Widget _dot(int i) {
+    if (i < step) {
+      return Container(
+        width: 20,
+        height: 20,
+        decoration: const BoxDecoration(color: SoftColors.white, shape: BoxShape.circle),
+        child: const Icon(Icons.check_rounded, size: 14, color: SoftColors.primary),
+      );
+    }
+    if (i == step) {
+      return Container(
+        width: 20,
+        height: 20,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x40FFFFFF),
+          shape: BoxShape.circle,
+          border: Border.all(color: SoftColors.white, width: 2),
+        ),
+        child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: SoftColors.white, shape: BoxShape.circle)),
+      );
+    }
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _faint, width: 2)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = journeySteps.length;
+    return Semantics(
+      label: step >= count ? 'All steps done' : 'Step ${step + 1} of $count: ${journeySteps[step]}',
+      excludeSemantics: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < count; i++)
+            Expanded(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 20,
+                    child: Row(
+                      children: [
+                        Expanded(child: i == 0 ? const SizedBox.shrink() : Container(height: 2, color: i <= step ? SoftColors.white : _faint)),
+                        _dot(i),
+                        Expanded(child: i == count - 1 ? const SizedBox.shrink() : Container(height: 2, color: i < step ? SoftColors.white : _faint)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      journeySteps[i],
+                      style: SoftType.cellLabel.copyWith(
+                        fontSize: 11.5,
+                        color: i <= step ? SoftColors.white : const Color(0xB3FFFFFF),
+                        fontWeight: i == step ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// What happens next, in the same words the portal uses, with the button
+/// that does it right under the sentence that asks for it.
+class _NextStepCard extends StatelessWidget {
+  final IconData icon;
+  final String eyebrow;
+  final String text;
+  final bool muted;
+  final List<Widget> actions;
+  const _NextStepCard({required this.icon, required this.eyebrow, required this.text, required this.muted, required this.actions});
 
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: SoftType.cellLabel),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: SoftType.cellValue.copyWith(fontWeight: FontWeight.w600),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SoftIconTile(
+                icon: icon,
+                size: 42,
+                background: muted ? SoftColors.chipWash : SoftColors.primarySoft,
+                foreground: muted ? SoftColors.muted : SoftColors.primary,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      eyebrow.toUpperCase(),
+                      style: SoftType.cellLabel.copyWith(
+                        fontSize: 11.5,
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w600,
+                        color: muted ? SoftColors.muted : SoftColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(text, style: SoftType.body.copyWith(color: SoftColors.ink, fontSize: 15, height: 1.4)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          for (final (i, action) in actions.indexed) ...[
+            SizedBox(height: i == 0 ? 16 : 10),
+            action,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final int? count;
+  const _SectionTitle(this.title, {this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 10),
+      child: Row(
+        children: [
+          Text(title, style: SoftType.section.copyWith(fontSize: 18)),
+          if (count != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: SoftColors.primarySoft, borderRadius: BorderRadius.circular(SoftRadius.pill)),
+              child: Text('$count', style: SoftType.cellLabel.copyWith(color: SoftColors.primary, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _DetailRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: SoftColors.muted),
+          const SizedBox(width: 13),
+          Text(label, style: SoftType.body),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: SoftType.cellValue.copyWith(fontSize: 14.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An empty section, said plainly, with what will fill it.
+class _EmptySection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  const _EmptySection({required this.icon, required this.title, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          SoftIconTile(icon: icon, size: 42, background: SoftColors.chipWash, foreground: SoftColors.muted),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: SoftType.tileTitle),
+                const SizedBox(height: 2),
+                Text(message, style: SoftType.tileSub),
+              ],
+            ),
           ),
         ],
       ),
@@ -726,6 +1043,8 @@ class _AssessmentCard extends StatelessWidget {
   }
 }
 
+/// One event, newest first: the latest one ringed in red, the office's
+/// remark set apart under it.
 class _TimelineRow extends StatelessWidget {
   final TimelineEntry entry;
   final bool first;
@@ -736,55 +1055,72 @@ class _TimelineRow extends StatelessWidget {
     required this.last,
   });
 
+  static String _when(String iso) {
+    final when = DateTime.tryParse(iso)?.toLocal();
+    return when == null ? iso : DateFormat('MMM d, yyyy · h:mm a').format(when);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final remarks = entry.remarks;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 14,
+            width: 20,
             child: Column(
               children: [
                 Container(
-                  width: 12,
-                  height: 12,
-                  margin: const EdgeInsets.only(top: 3),
+                  width: first ? 18 : 12,
+                  height: first ? 18 : 12,
+                  margin: EdgeInsets.only(top: first ? 0 : 3),
                   decoration: BoxDecoration(
                     color: first ? SoftColors.primary : SoftColors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: first ? SoftColors.primary : SoftColors.chevron,
-                      width: 2,
+                      color: first ? SoftColors.primarySoft : SoftColors.chevron,
+                      width: first ? 4 : 2,
                     ),
                   ),
                 ),
                 if (!last)
-                  Expanded(child: Container(width: 2, color: SoftColors.line)),
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: SoftColors.line,
+                    ),
+                  ),
               ],
             ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     entry.status,
                     style: SoftType.tileTitle.copyWith(
-                      color: first ? SoftColors.ink : SoftColors.muted,
+                      fontWeight: first ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    entry.occurredAt.substring(0, 10),
-                    style: SoftType.cellLabel,
-                  ),
-                  if (entry.remarks != null && entry.remarks!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(entry.remarks!, style: SoftType.body),
+                  const SizedBox(height: 3),
+                  Text(_when(entry.occurredAt), style: SoftType.cellLabel),
+                  if (remarks != null && remarks.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                      decoration: BoxDecoration(
+                        color: SoftColors.chipWash,
+                        borderRadius: BorderRadius.circular(SoftRadius.sm),
+                      ),
+                      child: Text(remarks, style: SoftType.body.copyWith(color: SoftColors.ink, fontSize: 13.5)),
+                    ),
                   ],
                 ],
               ),
