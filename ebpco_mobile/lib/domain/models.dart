@@ -670,6 +670,9 @@ class PaymentEntry {
   final String? officialReceiptNumber;
   final String? rejectionReason;
 
+  /// Why a settled payment was later Voided, Reversed or Refunded.
+  final String? exceptionReason;
+
   const PaymentEntry({
     required this.id,
     required this.referenceNumber,
@@ -680,6 +683,7 @@ class PaymentEntry {
     required this.verifiedAt,
     required this.officialReceiptNumber,
     required this.rejectionReason,
+    this.exceptionReason,
   });
 
   factory PaymentEntry.fromJson(Map<String, dynamic> json) => PaymentEntry(
@@ -692,6 +696,7 @@ class PaymentEntry {
         verifiedAt: json['verifiedAt'] as String?,
         officialReceiptNumber: json['officialReceiptNumber'] as String?,
         rejectionReason: json['rejectionReason'] as String?,
+        exceptionReason: json['exceptionReason'] as String?,
       );
 }
 
