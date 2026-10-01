@@ -160,6 +160,14 @@ class CitizenApi {
     return body.map((e) => TimelineEntry.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// `GET /applications/{id}/instructions` — the open Letters of Instruction:
+  /// what the office asked for when it returned the application. Empty when
+  /// nothing is outstanding.
+  Future<List<InstructionLetter>> instructions(String id) async {
+    final body = await _client.get<List<dynamic>>('/applications/$id/instructions');
+    return body.map((e) => InstructionLetter.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   Future<List<DocumentEntry>> listApplicationDocuments(String id) async {
     final body = await _client.get<List<dynamic>>('/applications/$id/documents');
     return body.map((e) => DocumentEntry.fromJson(e as Map<String, dynamic>)).toList();

@@ -163,6 +163,43 @@ class TimelineEntry {
       );
 }
 
+/// A Letter of Instruction: what the office asked for when it returned an
+/// application (`GET /applications/{id}/instructions`). Merged from
+/// eBPCOMobile's letter of instruction; the citizen portal shows the same
+/// items under "What the office needs from you".
+class InstructionLetter {
+  final String letterId;
+  final String issuedAt;
+  final List<InstructionItem> items;
+
+  const InstructionLetter({required this.letterId, required this.issuedAt, required this.items});
+
+  factory InstructionLetter.fromJson(Map<String, dynamic> json) => InstructionLetter(
+        letterId: json['letterId'] as String,
+        issuedAt: json['issuedAt'] as String,
+        items: ((json['items'] as List<dynamic>?) ?? const [])
+            .map((e) => InstructionItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+/// One thing the office asked for, in the evaluator's own words.
+class InstructionItem {
+  final String id;
+  final String subject;
+  final String remark;
+  final String? resolvedAt;
+
+  const InstructionItem({required this.id, required this.subject, required this.remark, required this.resolvedAt});
+
+  factory InstructionItem.fromJson(Map<String, dynamic> json) => InstructionItem(
+        id: json['id'] as String,
+        subject: json['subject'] as String? ?? '',
+        remark: json['remark'] as String? ?? '',
+        resolvedAt: json['resolvedAt'] as String?,
+      );
+}
+
 /// The server's answer to "may this permit number be renewed or amended on
 /// this filing?" — see `CitizenApi.renewalCheck`. [message] is written for
 /// the citizen and shown under the permit number field as-is.

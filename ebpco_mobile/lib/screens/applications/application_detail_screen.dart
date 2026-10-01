@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
@@ -40,6 +41,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   List<TimelineEntry> _timeline = [];
   List<DocumentEntry> _documents = [];
   List<RequirementDoc> _requirements = [];
+  /// What the office asked for, while the application is returned to the citizen.
+  List<InstructionLetter> _letters = [];
   bool _loading = true;
   bool _cancelling = false;
   bool _sendingBack = false;
@@ -67,8 +70,17 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
         // The checklist is only used to spot a missing required file; the
         // rest of the page stands without it.
       }
+      List<InstructionLetter> letters = const [];
+      if ((results[0] as ApplicationSummary).lifecycleStatus == 'Revision Required') {
+        try {
+          letters = await _api.instructions(widget.applicationId);
+        } on ApiError {
+          // The remarks are also on the timeline; the card stands without them.
+        }
+      }
       if (!mounted) return;
       setState(() {
+        _letters = letters;
         _application = results[0] as ApplicationSummary;
         _timeline = results[1] as List<TimelineEntry>;
         _documents = results[2] as List<DocumentEntry>;
@@ -223,6 +235,23 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_letters.any((letter) => letter.items.isNotEmpty)) ...[
+            Text('What the office needs from you', style: SoftType.tileTitle),
+            for (final letter in _letters)
+              for (final item in letter.items)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.remark, style: SoftType.body.copyWith(color: SoftColors.ink)),
+                      const SizedBox(height: 2),
+                      Text('Sent ${_sentOn(letter.issuedAt)}', style: SoftType.tileSub),
+                    ],
+                  ),
+                ),
+            const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, color: SoftColors.line)),
+          ],
           Text(
             ready ? 'Ready to send back' : 'The office returned this application',
             style: SoftType.tileTitle,
@@ -245,6 +274,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
         ],
       ),
     );
+  }
+
+  static String _sentOn(String iso) {
+    final when = DateTime.tryParse(iso)?.toLocal();
+    return when == null ? iso : DateFormat('MMM d, yyyy, h:mm a').format(when);
   }
 
   /// Required checklist items the server has no document for at all — a
