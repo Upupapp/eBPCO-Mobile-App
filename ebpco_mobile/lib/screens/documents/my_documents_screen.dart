@@ -7,6 +7,7 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/document_thumbnail.dart';
 import '../../widgets/status_badge.dart';
 import 'document_viewer_screen.dart';
 import '../../widgets/message_bar.dart';
@@ -269,7 +270,7 @@ class _DocRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SoftIconTile(icon: Icons.insert_drive_file_outlined),
+          DocumentThumbnail(doc: doc),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
