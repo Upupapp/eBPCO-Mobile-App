@@ -11,6 +11,7 @@ import 'services/notifications_service.dart';
 import 'services/push_service.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
+import 'theme/text_scale_clamp.dart';
 import 'widgets/message_bar.dart';
 
 Future<void> main() async {
@@ -101,6 +102,7 @@ class EbpcoMobileApp extends StatelessWidget {
         // Leaving a page never hands the keyboard to the page underneath —
         // otherwise popping back to Sign in re-opens it over the form.
         navigatorObservers: [_UnfocusOnNavigate()],
+        builder: (context, child) => TextScaleClamp(child: child!),
         home: const SplashScreen(),
       ),
     );
