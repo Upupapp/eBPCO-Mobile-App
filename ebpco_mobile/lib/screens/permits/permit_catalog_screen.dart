@@ -7,6 +7,7 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import 'application_wizard_screen.dart';
+import 'official_forms_screen.dart';
 
 /// Ported grouping from `permit.model.ts`'s `PERMIT_TYPE_GROUPS` — see that
 /// file's own comment on why this is the mirror, not a re-derivation.
@@ -25,6 +26,15 @@ class PermitCatalogScreen extends StatelessWidget {
           Text('Browse permit types and start a new application.', style: SoftType.body.copyWith(fontSize: 15)),
           const SizedBox(height: 18),
           const BfpClearanceNotice(),
+          const SizedBox(height: 22),
+          SoftGroupedList(rows: [
+            SoftListRow(
+              icon: Icons.picture_as_pdf_outlined,
+              title: 'Official Forms',
+              subtitle: 'Read, save or print the blank application forms',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OfficialFormsScreen())),
+            ),
+          ]),
           const SizedBox(height: 22),
           for (final group in permitTypeGroups) ...[
             SoftSectionHeader(title: group.label),

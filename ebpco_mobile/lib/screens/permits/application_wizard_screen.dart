@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
@@ -24,6 +25,7 @@ import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
 import '../profile/legal_screen.dart';
+import 'official_forms_screen.dart';
 import '../../widgets/message_bar.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
@@ -936,6 +938,22 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Text('Documents', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 6),
         Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
+        // The blank form the office expects, to print, fill in and upload
+        // below (merged from eBPCOMobile's bundled forms).
+        if (permitDocumentsFor(_permitType).isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SoftPillButton(
+              label: 'Blank form for this permit',
+              kind: SoftPillKind.text,
+              icon: Icons.picture_as_pdf_outlined,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => OfficialFormsScreen(permitType: _permitType)),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         ..._visibleRequirements.map((doc) {
           final attached = _attachedDocIds[doc.code];
