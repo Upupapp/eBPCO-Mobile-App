@@ -71,6 +71,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     decoration: const BoxDecoration(color: SoftColors.white, shape: BoxShape.circle, boxShadow: SoftShadows.seal),
                     child: Image.asset('assets/images/ebpco_seal.png', fit: BoxFit.contain),
                   ),
+                  const SizedBox(width: 12),
+                  const _Wordmark(),
                   const Spacer(),
                   SoftCircleButton(
                     icon: Icons.notifications_none_rounded,
@@ -327,6 +329,39 @@ class _ApplicationRow extends StatelessWidget {
             ),
           ),
           const Icon(Icons.chevron_right_rounded, color: SoftColors.chevron),
+        ],
+      ),
+    );
+  }
+}
+
+/// The app's name beside the seal: the sign-in screen's "eBPCO" lockup at
+/// header size, the "e" in Castilla red, with the municipality under it in the
+/// eyebrow style. Read as one label.
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'eBPCO, Municipality of Castilla, Sorsogon',
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            const TextSpan(children: [
+              TextSpan(text: 'e', style: TextStyle(color: SoftColors.primary)),
+              TextSpan(text: 'BPCO'),
+            ]),
+            style: SoftType.hero.copyWith(fontSize: 22, letterSpacing: -0.6, height: 1.0),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'CASTILLA · SORSOGON',
+            style: SoftType.eyebrow.copyWith(fontSize: 10.5, letterSpacing: 1.4, height: 1.0),
+          ),
         ],
       ),
     );
