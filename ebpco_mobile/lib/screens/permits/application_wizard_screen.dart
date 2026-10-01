@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/draft_resume.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
@@ -168,6 +169,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _professionalName.text = app.form['professionalName'] as String? ?? '';
       _prcNumber.text = app.form['prcNumber'] as String? ?? '';
       await _loadRequirements();
+      if (!mounted) return;
+      // Reopen where the citizen stopped, by the same tests Continue applies
+      // on the way forward. A business not loaded yet does not hold them back.
+      final business = context.read<BusinessesService>().businesses.where((b) => b.id == _businessId);
+      _goTo(resumeStep(
+        applicantDone: _businessId != null &&
+            (business.isEmpty || business.first.isActive) &&
+            (!_needsPermitReference || app.renewsPermitNumber != null || app.priorPermitClaim != null),
+        detailsDone: _projectAddress.text.trim().isNotEmpty && _scopeOfWork.text.trim().isNotEmpty,
+        documentsDone: _requiredDocumentsComplete,
+      ));
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);
     } finally {
