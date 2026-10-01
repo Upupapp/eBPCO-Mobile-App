@@ -189,11 +189,22 @@ class _SlideView extends StatelessWidget {
                             colors: [SoftColors.primarySoft, SoftColors.primaryWash],
                           ),
                         ),
+                        // Half body: the picture is sized so about the top four fifths of it
+                        // fill the hero, anchored at the top, and the curved edge crops her at
+                        // about the waist. Shrunk to fit, she stood small in the middle; sized
+                        // to the hero's width, only her head and shoulders showed. By height,
+                        // it lands the same on every screen.
                         child: SafeArea(
                           bottom: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 36, 24, 44),
-                            child: Image.asset(slide.image, fit: BoxFit.contain, alignment: Alignment.bottomCenter),
+                          child: LayoutBuilder(
+                            builder: (context, box) => OverflowBox(
+                              alignment: Alignment.topCenter,
+                              maxHeight: double.infinity,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Image.asset(slide.image, height: box.maxHeight * 1.2, fit: BoxFit.fitHeight),
+                              ),
+                            ),
                           ),
                         ),
                       ),
