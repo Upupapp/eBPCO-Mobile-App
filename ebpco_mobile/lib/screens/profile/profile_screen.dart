@@ -302,7 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 22),
           const SoftSectionHeader(title: 'Activity'),
           SoftGroupedList(rows: [
-            SoftListRow(icon: Icons.folder_outlined, title: 'My Documents', subtitle: 'Files you have uploaded', onTap: () => _push(const MyDocumentsScreen())),
+            SoftListRow(icon: Icons.folder_outlined, title: 'My Documents', subtitle: 'Upload once, attach to any application', onTap: () => _push(const MyDocumentsScreen())),
             SoftListRow(icon: Icons.download_outlined, title: 'Export Your Data', onTap: () => _push(const ExportDataScreen())),
           ]),
           const SizedBox(height: 22),

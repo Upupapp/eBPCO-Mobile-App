@@ -1,9 +1,19 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/upload_file.dart';
+import '../../services/upload_limits.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/soft_action_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
@@ -23,6 +33,23 @@ bool matchesDocumentSearch(DocumentEntry doc, String query) {
   return words.every(haystack.contains);
 }
 
+/// The file name in [docs] that is [fileName] but for case, or null. The
+/// portal's check: "Barangay Clearance.pdf" and "barangay clearance.pdf" are
+/// one document to a citizen, and the reuse list tells documents apart by name.
+String? sameNameIn(List<DocumentEntry> docs, String fileName) {
+  final wanted = fileName.trim().toLowerCase();
+  for (final doc in docs) {
+    if (doc.fileName.trim().toLowerCase() == wanted) return doc.fileName;
+  }
+  return null;
+}
+
+/// A photo taken in the app is named for when it was taken: the camera's own
+/// name ("scaled_4f1c….jpg") says nothing a citizen would look for.
+String cameraPhotoName(DateTime when) => 'Photo ${DateFormat('yyyy-MM-dd HH.mm.ss').format(when)}.jpg';
+
+enum _UploadSource { camera, photos, file }
+
 /// `GET /documents/me` — every document this citizen has ever uploaded,
 /// attached to an application or not. Mirrors `my-documents.page.ts`.
 class MyDocumentsScreen extends StatefulWidget {
@@ -40,6 +67,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
 
   /// Showing what the citizen archived (ebpco-api 062) instead of My Documents.
   bool _archived = false;
+  bool _uploading = false;
 
   @override
   void initState() {
@@ -126,6 +154,99 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     }
   }
 
+  /// The portal's "+ Upload Document": a file into My Documents, attached to
+  /// nothing yet, ready to reuse on any application. The phone adds what the
+  /// web page cannot: a photo of the paper, taken there and then.
+  Future<void> _upload() async {
+    final source = await showSoftActionSheet<_UploadSource>(
+      context,
+      title: 'Upload a document',
+      subtitle: 'It stays in My Documents, ready to attach to any application.',
+      actions: const [
+        SoftSheetAction(value: _UploadSource.camera, icon: Icons.photo_camera_outlined, title: 'Take a photo', subtitle: 'Of a paper document'),
+        SoftSheetAction(value: _UploadSource.photos, icon: Icons.photo_library_outlined, title: 'Choose from photos'),
+        SoftSheetAction(value: _UploadSource.file, icon: Icons.upload_file_rounded, title: 'Choose a file', subtitle: 'PDF, JPG or PNG'),
+      ],
+    );
+    if (source == null || !mounted) return;
+
+    var picking = true;
+    try {
+      final picked = await _pick(source);
+      picking = false;
+      if (picked == null || !mounted) return;
+      setState(() => _uploading = true);
+      final file = await readyForUpload(picked.$1, picked.$2);
+      final clash = sameNameIn(_documents, file.fileName);
+      if (clash != null) {
+        _say('A document named "$clash" is already in My Documents.');
+        return;
+      }
+      await _api.uploadDocument(fileName: file.fileName, label: file.fileName, contentBase64: base64Encode(file.bytes));
+      _say('"${file.fileName}" uploaded.');
+      await _load();
+    } on UploadRefused catch (e) {
+      _say(e.message);
+    } on ApiError catch (e) {
+      // The same file under another name: the server compares the contents,
+      // not the name, and keeps one copy.
+      final existing = duplicateOf(e);
+      _say(existing != null
+          ? 'You already have this file in My Documents as "${existing.fileName}". Reuse that one: it can be attached to any application.'
+          : e.citizenMessage);
+    } catch (_) {
+      _say(!picking
+          ? 'The document could not be uploaded. Try again.'
+          : source == _UploadSource.camera
+              ? 'The camera could not be opened.'
+              : 'Your files could not be opened.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  /// The picked file's name and bytes, or null when the citizen backed out.
+  Future<(String, Uint8List)?> _pick(_UploadSource source) async {
+    if (source == _UploadSource.file) {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+        withData: true,
+        // The phone copies the chosen file before handing it over, which can
+        // take a while: the button turns busy the moment one is chosen.
+        onFileLoading: (status) {
+          if (status == FilePickerStatus.picking && mounted) setState(() => _uploading = true);
+        },
+      );
+      final file = result?.files.single;
+      if (file == null) return null;
+      final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
+      if (bytes == null) throw const UploadRefused(unreadableFile);
+      return (file.name, bytes);
+    }
+    final camera = source == _UploadSource.camera;
+    final photo = await ImagePicker().pickImage(source: camera ? ImageSource.camera : ImageSource.gallery);
+    if (photo == null) return null;
+    return (camera ? cameraPhotoName(DateTime.now()) : photo.name, await photo.readAsBytes());
+  }
+
+  /// The tabs, then (in My Documents) the upload button.
+  Widget _top() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ArchiveToggle(archived: _archived, onChanged: _showArchived),
+          if (!_archived) ...[
+            const SizedBox(height: 14),
+            SoftPillButton(
+              label: 'Upload Document',
+              icon: Icons.add_rounded,
+              busy: _uploading,
+              onPressed: _uploading ? null : _upload,
+            ),
+          ],
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     final shown = _shown;
@@ -140,11 +261,12 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                 ? ListView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     children: [
-                      _ArchiveToggle(archived: _archived, onChanged: _showArchived),
+                      _top(),
                       const SizedBox(height: 14),
                       SoftEmptyCard(_archived
                           ? 'You have not archived any documents.'
-                          : "You haven't uploaded any documents yet."),
+                          : "You haven't uploaded any documents yet. Upload your IDs, clearances and other papers "
+                              'once, then attach them to any application.'),
                     ],
                   )
                 : ListView.builder(
@@ -161,7 +283,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _ArchiveToggle(archived: _archived, onChanged: _showArchived),
+                              _top(),
                               const SizedBox(height: 12),
                               _SearchField(
                             controller: _search,
