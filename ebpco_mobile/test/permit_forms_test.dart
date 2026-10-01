@@ -30,6 +30,15 @@ void main() {
     expect(bundled, used);
   });
 
+  test('each form is saved and shared under its own name, not the bundle file name', () {
+    for (final form in allBlankForms) {
+      expect(form.downloadName, endsWith('.pdf'), reason: form.title);
+      expect(form.downloadName, isNot(contains('/')), reason: form.title);
+      expect(form.downloadName, isNot(form.fileName), reason: form.title);
+    }
+    expect(blankFormFor('bpnc-unified-form')!.downloadName, 'Unified Application Form for Building Permit.pdf');
+  });
+
   test('the Architectural form is a reference template, never presented as Castilla\'s', () {
     expect(blankFormFor('bpnc-ancillary-architectural')!.isOfficialCastillaForm, isFalse);
     expect(blankFormFor('bpnc-unified-form')!.isOfficialCastillaForm, isTrue);

@@ -25,7 +25,7 @@ import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
 import '../profile/legal_screen.dart';
-import 'blank_form_screen.dart';
+import '../../widgets/blank_form_link.dart';
 import '../../widgets/message_bar.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
@@ -989,16 +989,11 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                   // A document that IS a form to sign on paper (the Unified
                   // Building Permit Form, an ancillary form): the blank one,
                   // to print, sign and upload here.
-                  if (blankFormFor(doc.code) case final form?)
-                    SoftPillButton(
-                      label: 'Get the blank form',
-                      kind: SoftPillKind.text,
-                      icon: Icons.picture_as_pdf_outlined,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => BlankFormScreen(form: form)),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
+                  if (blankFormFor(doc.code) case final form?) ...[
+                    const SizedBox(height: 14),
+                    BlankFormLink(form: form),
+                  ],
+                  const SizedBox(height: 14),
                   if (uploading)
                     Center(
                       child: Column(
