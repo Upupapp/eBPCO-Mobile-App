@@ -11,7 +11,7 @@ the permits and App Store readiness.
 
 | From eBPCOMobile | Here |
 |---|---|
-| Bundled blank permit forms (`M-10`) | `assets/permits/`, `lib/domain/permit_forms.dart`, `lib/screens/permits/official_forms_screen.dart` |
+| Bundled blank permit forms (`M-10`) | `assets/permits/`, `lib/domain/permit_forms.dart`, `lib/screens/permits/blank_form_screen.dart`. Since 2026-10-01 only the forms a requirement asks the citizen to sign and upload (the Building Permit's Unified form and its ancillary forms), linked from that document's card |
 | iOS privacy manifest (`M-46`) | `ios/Runner/PrivacyInfo.xcprivacy`, re-measured for this app |
 | Letter of Instruction | the returned-application card in `lib/screens/applications/application_detail_screen.dart` |
 | Contact verification | `lib/screens/profile/verify_email_screen.dart` |

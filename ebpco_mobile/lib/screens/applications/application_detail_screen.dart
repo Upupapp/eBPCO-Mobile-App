@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
 import '../../services/upload_limits.dart';
@@ -23,6 +24,7 @@ import '../documents/document_viewer_screen.dart';
 import '../payments/payment_flow_screen.dart';
 import '../payments/payments_list_screen.dart';
 import '../permits/application_wizard_screen.dart';
+import '../permits/blank_form_screen.dart';
 import 'permit_document_screen.dart';
 import '../../widgets/message_bar.dart';
 
@@ -471,6 +473,17 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                       ),
                     ],
                   ),
+                  // A missing form to sign on paper: the blank one, to print.
+                  if (blankFormFor(req.code) case final form?)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SoftPillButton(
+                        label: 'Get the blank form',
+                        kind: SoftPillKind.text,
+                        icon: Icons.picture_as_pdf_outlined,
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BlankFormScreen(form: form))),
+                      ),
+                    ),
                 ],
               ],
             ),

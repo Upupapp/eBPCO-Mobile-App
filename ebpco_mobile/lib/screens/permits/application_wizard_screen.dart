@@ -25,7 +25,7 @@ import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
 import '../profile/legal_screen.dart';
-import 'official_forms_screen.dart';
+import 'blank_form_screen.dart';
 import '../../widgets/message_bar.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
@@ -938,22 +938,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Text('Documents', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 6),
         Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
-        // The blank form the office expects, to print, fill in and upload
-        // below (merged from eBPCOMobile's bundled forms).
-        if (permitDocumentsFor(_permitType).isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SoftPillButton(
-              label: 'Blank form for this permit',
-              kind: SoftPillKind.text,
-              icon: Icons.picture_as_pdf_outlined,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => OfficialFormsScreen(permitType: _permitType)),
-              ),
-            ),
-          ),
-        ],
         const SizedBox(height: 16),
         ..._visibleRequirements.map((doc) {
           final attached = _attachedDocIds[doc.code];
@@ -1002,6 +986,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                     const SizedBox(height: 10),
                     Text(doc.description, style: SoftType.body),
                   ],
+                  // A document that IS a form to sign on paper (the Unified
+                  // Building Permit Form, an ancillary form): the blank one,
+                  // to print, sign and upload here.
+                  if (blankFormFor(doc.code) case final form?)
+                    SoftPillButton(
+                      label: 'Get the blank form',
+                      kind: SoftPillKind.text,
+                      icon: Icons.picture_as_pdf_outlined,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => BlankFormScreen(form: form)),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   if (uploading)
                     Center(

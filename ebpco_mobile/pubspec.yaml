@@ -80,9 +80,10 @@ flutter:
 
   assets:
     - assets/images/
-    # The blank official application forms, byte for byte the admin portal's
-    # `public/assets/permits/` (merged from eBPCOMobile, 2026-10-01). The BFP's
-    # FSEC and FSIC forms are not bundled: the BFP issues both on BFP-FSIS.
+    # The blank forms a requirement asks the citizen to sign on paper and
+    # upload (the Building Permit's Unified form and its ancillary forms),
+    # byte for byte the admin portal's `public/assets/permits/`. See
+    # lib/domain/permit_forms.dart.
     - assets/permits/
 
   # Inter, bundled — the design reference's own face (owner decision: take
