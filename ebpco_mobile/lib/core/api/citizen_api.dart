@@ -35,6 +35,30 @@ class CitizenApi {
   Future<void> confirmEmailVerification(String email, String code) =>
       _client.post('/auth/register/email/confirm', body: {'email': email, 'code': code}, auth: false);
 
+  /// `POST /me/contacts/email/request` — a code to the signed-in citizen's
+  /// own email, for an account whose email was never confirmed (merged from
+  /// eBPCOMobile's contact verification). `kind` is the server's `delivery`:
+  /// `sent`, `not-sent` (no mail provider) or `failed`; `too-soon` and
+  /// `already-verified` are its refusals.
+  Future<({String kind, String detail})> requestMyEmailCode() async {
+    try {
+      final body = await _client.post<Map<String, dynamic>>('/me/contacts/email/request', body: const {});
+      return (kind: body['delivery'] as String? ?? 'sent', detail: body['detail'] as String? ?? '');
+    } on ApiError catch (e) {
+      if (e.status == 409) {
+        final already = e.citizenMessage.toLowerCase().contains('already verified');
+        return (kind: already ? 'already-verified' : 'too-soon', detail: e.citizenMessage);
+      }
+      rethrow;
+    }
+  }
+
+  /// `POST /me/contacts/email/confirm` — the six-digit code. On success the
+  /// account's email is verified everywhere (`GET /me`'s `emailVerifiedAt`,
+  /// and the staff record).
+  Future<void> confirmMyEmailCode(String code) =>
+      _client.post('/me/contacts/email/confirm', body: {'code': code});
+
   Future<void> register({
     required String firstName,
     String? middleName,

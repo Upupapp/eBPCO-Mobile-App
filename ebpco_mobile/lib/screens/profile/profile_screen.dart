@@ -24,6 +24,7 @@ import 'export_data_screen.dart';
 import 'help_support_screen.dart';
 import 'legal_screen.dart';
 import 'notification_preferences_screen.dart';
+import 'verify_email_screen.dart';
 import '../../widgets/message_bar.dart';
 
 /// The consequences a citizen must see before deleting their account —
@@ -236,11 +237,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 10),
           Text(
             verified
-                ? 'Your email address was confirmed when you signed up.'
-                : 'Your email address was not confirmed when this account was created. This does not block '
-                    'anything here; the Municipality may confirm it with you directly.',
+                ? 'Your email address is confirmed.'
+                : 'Your email address has not been confirmed yet. This does not block anything here, but '
+                    'confirming it makes sure the Municipality’s notices reach you.',
             style: SoftType.cellLabel.copyWith(fontSize: 13),
           ),
+          if (!verified) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SoftPillButton(
+                label: 'Verify my email',
+                kind: SoftPillKind.text,
+                icon: Icons.mark_email_read_outlined,
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VerifyEmailScreen())),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
