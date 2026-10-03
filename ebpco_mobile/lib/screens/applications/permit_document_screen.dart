@@ -113,10 +113,17 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
             value: permit?.permitNumber ?? 'Not yet assigned',
             pending: !issued,
             facts: [
-              ('Application No.', app.referenceNumber),
+              ('Application No.', app.displayReference),
               ('Date Issued', issued ? _formatDate(permit.issuedDate) : 'Not yet assigned'),
-              // The office sends no expiry date; the portal says the same.
-              ('Valid Until', issued ? 'No fixed expiry' : 'Not yet assigned'),
+              // As the office recorded it when issuing (QA TC-04); the portal says the same.
+              (
+                'Valid Until',
+                !issued
+                    ? 'Not yet assigned'
+                    : permit.expiresOn != null
+                        ? _formatDate(permit.expiresOn!)
+                        : 'Not recorded by the office',
+              ),
             ],
           ),
           // "Owner / Applicant", as box 1 of the LGU's Unified Application Form
@@ -170,9 +177,9 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
           PaperSignature(
             heading: 'Approval',
             pendingLabel: 'Pending Authorized Signature',
-            // The permit response names no signatory; the portal says the same.
-            name: 'Not on file',
-            position: office,
+            // Who approved it, as recorded at issue (QA TC-04, TC-18); the portal says the same.
+            name: permit?.approvingOfficial ?? 'Not on file',
+            position: permit?.approvingOffice ?? office,
           ),
           PaperQr(
             url: verificationUrl,

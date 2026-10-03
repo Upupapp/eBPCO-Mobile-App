@@ -319,6 +319,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       );
       return;
     }
+    // A PRC licence number is seven digits (QA TC-32, 2026-10-03: "abc" was
+    // accepted and shown to staff). Optional, so only checked when given.
+    if (prcNumberProblem(_prcNumber.text) case final problem?) {
+      setState(() => _error = problem);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -430,6 +436,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         reuseOf: reuseOf,
       );
       final documentId = upload.documentId;
+      // One file stands as one document (QA TC-21, 2026-10-03: the land title
+      // uploaded again as the Survey Plan was accepted and counted). The
+      // server answers a file the citizen already has with that copy, so the
+      // same file twice arrives here as the same document.
+      final holder = _attachedDocIds.entries
+          .where((e) => e.key != doc.code && e.value == documentId)
+          .map((e) => _requirements.where((r) => r.code == e.key).firstOrNull?.label ?? 'another requirement')
+          .firstOrNull;
+      if (holder != null) {
+        _say(sameFileMessage(file.fileName, holder, doc.label));
+        return;
+      }
       if (upload.reused != null) {
         _say('You already had "${upload.reused!.fileName}" in My Documents, so that copy was used. '
             'Next time, choose it from your documents instead of the device.');
@@ -932,7 +950,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         ),
         const SizedBox(height: 16),
         _label('PRC License No. (optional)'),
-        TextField(controller: _prcNumber, style: SoftType.field),
+        TextField(
+          controller: _prcNumber,
+          style: SoftType.field,
+          keyboardType: TextInputType.number,
+          maxLength: 7,
+          decoration: const InputDecoration(
+            hintText: '7 digits, e.g. 0012345',
+            helperText: "The 7-digit number on the professional's PRC ID.",
+            counterText: '',
+          ),
+        ),
         const SizedBox(height: 26),
         _navRow(
           onBack: () => _goTo(1),
@@ -1107,6 +1135,15 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               const Divider(height: 1, color: SoftColors.line),
               row('Scope of Work', _scopeOfWork.text),
               const Divider(height: 1, color: SoftColors.line),
+              // Everything typed in the Details step, as it will be filed (QA TC-22).
+              row('Professional in Charge', _professionalName.text.trim().isEmpty ? 'None given' : _professionalName.text.trim()),
+              const Divider(height: 1, color: SoftColors.line),
+              row('PRC License No.', _prcNumber.text.trim().isEmpty ? 'None given' : _prcNumber.text.trim()),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: () => _goTo(2), child: const Text('Edit details')),
+              ),
+              const Divider(height: 1, color: SoftColors.line),
               row(
                 'Documents attached',
                 '${_visibleRequirements.where((r) => _attachedDocIds.containsKey(r.code)).length} of ${_visibleRequirements.length}',
@@ -1223,3 +1260,15 @@ class _StepIndicator extends StatelessWidget {
     );
   }
 }
+
+/// Null when [value] is empty or a PRC licence number: the seven digits on the
+/// professional's PRC ID, the citizen portal's check (QA TC-32).
+String? prcNumberProblem(String value) {
+  final number = value.trim();
+  if (number.isEmpty || RegExp(r'^\d{7}$').hasMatch(number)) return null;
+  return "A PRC license number is the 7 digits on the professional's PRC ID, for example 0012345.";
+}
+
+/// The citizen portal's words for the same file attached twice (QA TC-21).
+String sameFileMessage(String fileName, String heldBy, String wantedFor) =>
+    '"$fileName" is already attached as "$heldBy". Attach the right file for "$wantedFor".';

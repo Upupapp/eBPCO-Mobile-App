@@ -6,6 +6,7 @@ import '../../core/api/problem.dart';
 import '../../domain/business_categories.dart';
 import '../../domain/castilla.dart';
 import '../../domain/models.dart';
+import '../../domain/registration_number.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
 import '../../theme/app_typography.dart';
@@ -14,10 +15,12 @@ import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../../widgets/message_bar.dart';
 
-/// `PATCH /businesses/:id` — the owner-editable subset only:
-/// registrationNumber/dateRegistered/status are not offered here at all,
-/// matching the server's own `.strict()` refusal of them (see
-/// citizen-api.models.ts's `UpdateBusinessRequest`).
+/// `PATCH /businesses/:id` — the owner-editable subset only. `status` is the
+/// Municipality's and is not offered. The DTI/SEC/CDA registration number and
+/// date are what the citizen typed, so they are theirs to correct until an
+/// application under the business reaches the office (QA TC-24, 2026-10-03:
+/// a mistyped "x" could never be fixed); after that they show read-only, with
+/// who to ask — the portal's Edit Business, the same rule.
 class EditBusinessScreen extends StatefulWidget {
   final Business business;
   const EditBusinessScreen({super.key, required this.business});
@@ -29,6 +32,8 @@ class EditBusinessScreen extends StatefulWidget {
 class _EditBusinessScreenState extends State<EditBusinessScreen> {
   late final TextEditingController _name;
   late final TextEditingController _street;
+  late final TextEditingController _registrationNumber;
+  late String _dateRegistered;
   late String _category;
   late String? _barangay;
   bool _saving = false;
@@ -39,6 +44,10 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
     super.initState();
     _name = TextEditingController(text: widget.business.name);
     _street = TextEditingController(text: widget.business.street);
+    _registrationNumber = TextEditingController(text: widget.business.registrationNumber);
+    _dateRegistered = widget.business.dateRegistered.length >= 10
+        ? widget.business.dateRegistered.substring(0, 10)
+        : widget.business.dateRegistered;
     _category = widget.business.category;
     _barangay = widget.business.barangay;
   }
@@ -47,6 +56,7 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
   void dispose() {
     _name.dispose();
     _street.dispose();
+    _registrationNumber.dispose();
     super.dispose();
   }
 
@@ -54,6 +64,16 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
     if (_name.text.trim().isEmpty || _street.text.trim().isEmpty || _barangay == null) {
       setState(() => _error = 'Please complete every required field.');
       return;
+    }
+    final locked = registrationLockedBy(context.read<ApplicationsService>().applications, widget.business.id);
+    final registrationChanged = !locked &&
+        (_registrationNumber.text.trim() != widget.business.registrationNumber ||
+            _dateRegistered != widget.business.dateRegistered.substring(0, widget.business.dateRegistered.length.clamp(0, 10)));
+    if (registrationChanged) {
+      if (registrationNumberProblem(_registrationNumber.text) case final problem?) {
+        setState(() => _error = problem);
+        return;
+      }
     }
     setState(() {
       _saving = true;
@@ -68,6 +88,8 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
         barangay: _barangay!,
         city: castillaCity,
         province: castillaProvince,
+        registrationNumber: registrationChanged ? _registrationNumber.text.trim() : null,
+        dateRegistered: registrationChanged ? _dateRegistered : null,
       );
       if (!mounted) return;
       await context.read<BusinessesService>().refresh();
@@ -93,6 +115,7 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locked = registrationLockedBy(context.watch<ApplicationsService>().applications, widget.business.id);
     return SoftPageScaffold(
       title: 'Edit Business',
       body: SingleChildScrollView(
@@ -123,6 +146,41 @@ class _EditBusinessScreenState extends State<EditBusinessScreen> {
               items: castillaBarangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
               onChanged: (v) => setState(() => _barangay = v),
             ),
+            const SizedBox(height: 16),
+            if (locked) ...[
+              const SoftFieldLabel('DTI / SEC / CDA Registration'),
+              Text(
+                '${widget.business.registrationNumber} · registered ${_dateRegistered.isEmpty ? 'date not on file' : _dateRegistered}',
+                style: SoftType.cellValue,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'An application filed under this business has reached the office, which now relies on these details. '
+                'To correct them, ask the Office of the Building Official.',
+                style: SoftType.body.copyWith(color: SoftColors.muted),
+              ),
+            ] else ...[
+              const SoftFieldLabel('DTI / SEC / CDA Registration Number'),
+              TextField(controller: _registrationNumber, style: SoftType.field),
+              const SizedBox(height: 16),
+              const SoftFieldLabel('Date Registered'),
+              SoftPickerField(
+                value: _dateRegistered.isEmpty ? null : _dateRegistered,
+                placeholder: 'Select date',
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.tryParse(_dateRegistered) ?? DateTime.now(),
+                    firstDate: DateTime(1980),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) setState(() => _dateRegistered = picked.toIso8601String().substring(0, 10));
+                },
+              ),
+              const SizedBox(height: 6),
+              Text('You can correct these until you file an application for this business.',
+                  style: SoftType.body.copyWith(color: SoftColors.muted)),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 14),
               Text(_error!, style: AppTypography.error),

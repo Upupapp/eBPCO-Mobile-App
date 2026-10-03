@@ -10,7 +10,33 @@ import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import 'application_detail_screen.dart';
 
-const _filters = ['All', 'Draft', 'Submitted', 'Under Review', 'Payment Verification', 'Approved', 'Ready for Release', 'Rejected'];
+/// One chip for every status a citizen sees on a row, the same tabs as the
+/// citizen portal (QA TC-35, 2026-10-03: Completed, Cancelled and Revision
+/// Required had none). Each names the words on the badges it lists; null is
+/// every application.
+const Map<String, Set<String>?> _filterStatuses = {
+  'All': null,
+  'Draft': {'Draft'},
+  'Submitted': {'Submitted', 'Received'},
+  'Under Review': {'Document Verification', 'Under Evaluation'},
+  'Revision Required': {'Revision Required'},
+  'Payment': {'Assessed', 'Payment Submitted', 'Payment Under Verification', 'Payment Verified', 'For Approval'},
+  'Approved': {'Approved', 'Permit Generated'},
+  'Ready for Release': {'Ready for Release'},
+  'Released': {'Released'},
+  'Completed': {'Completed'},
+  'Rejected': {'Rejected'},
+  'Cancelled': {'Cancelled'},
+  'Expired': {'Expired'},
+};
+
+final _filters = _filterStatuses.keys.toList();
+
+/// Whether [application] is listed under the chip named [filter].
+bool inApplicationFilter(ApplicationSummary application, String filter) {
+  final statuses = _filterStatuses[filter];
+  return statuses == null || statuses.contains(application.lifecycleStatus);
+}
 
 class MyApplicationsScreen extends StatefulWidget {
   const MyApplicationsScreen({super.key});
@@ -61,7 +87,11 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
   @override
   Widget build(BuildContext context) {
     final apps = context.watch<ApplicationsService>();
-    final filtered = _filter == 'All' ? apps.applications : apps.applications.where((a) => a.applicantStatus == _filter).toList();
+    final filtered = apps.applications.where((a) => inApplicationFilter(a, _filter)).toList();
+    // Expired is a chip only once something has expired; the rest always show.
+    final chips = _filters
+        .where((f) => f != 'Expired' || f == _filter || apps.applications.any((a) => inApplicationFilter(a, f)))
+        .toList();
 
     return SoftPageScaffold(
       title: 'My Applications',
@@ -75,11 +105,12 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
               controller: _chips,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _filters.length,
+              itemCount: chips.length,
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
-                final f = _filters[i];
-                return SoftFilterChip(label: f, selected: f == _filter, onTap: () => setState(() => _filter = f));
+                final f = chips[i];
+                final count = apps.applications.where((a) => inApplicationFilter(a, f)).length;
+                return SoftFilterChip(label: '$f ($count)', selected: f == _filter, onTap: () => setState(() => _filter = f));
               },
             ),
           ),
@@ -141,7 +172,7 @@ class _Row extends StatelessWidget {
               children: [
                 Text(application.permitType, style: SoftType.tileTitle.copyWith(fontSize: 16)),
                 const SizedBox(height: 2),
-                Text(application.referenceNumber, style: SoftType.tileSub),
+                Text(application.displayReference, style: SoftType.tileSub),
                 const SizedBox(height: 2),
                 Text(date, style: SoftType.cellLabel),
                 const SizedBox(height: 10),

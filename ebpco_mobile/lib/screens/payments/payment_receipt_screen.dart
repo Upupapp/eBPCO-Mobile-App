@@ -130,7 +130,7 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
             value: tx.officialReceiptNumber ?? 'Not yet assigned',
             pending: tx.officialReceiptNumber == null,
             facts: [
-              ('Application No.', app.referenceNumber),
+              ('Application No.', app.displayReference),
               ('Date Submitted', _formatDate(tx.submittedAt)),
               ('Date Verified', tx.verifiedAt != null ? _formatDate(tx.verifiedAt!) : 'Pending'),
             ],
@@ -175,8 +175,9 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
                 : PaperTable(
                     header: const ['Fee', 'Amount'],
                     rows: [
+                      // Only the fees that apply: a ₱0.00 line read as a charge (QA TC-05).
                       for (final line in _feeLines)
-                        ([line.$2, order.fees.containsKey(line.$1) ? pesos(order.fees[line.$1]!) : 'Pending'], false),
+                        if ((order.fees[line.$1] ?? 0) > 0) ([line.$2, pesos(order.fees[line.$1]!)], false),
                       (['Amount Paid (this transaction)', pesos(tx.amountCentavos)], true),
                       (['Remaining Balance', pesos(tx.status == 'Paid' ? 0 : order.totalCentavos)], false),
                     ],

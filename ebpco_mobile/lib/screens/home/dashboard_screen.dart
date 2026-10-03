@@ -52,7 +52,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final profile = session.profile;
     final firstName = profile?.firstName ?? '';
     final initials = [profile?.firstName, profile?.lastName].where((s) => s != null && s.isNotEmpty).map((s) => s![0]).join().toUpperCase();
-    final active = apps.applications.where((a) => a.applicantStatus != 'Rejected').toList();
+    // Open applications only: a completed, withdrawn, rejected or expired one
+    // is not "active" (QA TC-33, 2026-10-03).
+    final active = apps.applications.where((a) => !a.isClosed).toList();
 
     return SoftWash(
       child: SafeArea(
@@ -322,7 +324,7 @@ class _ApplicationRow extends StatelessWidget {
               children: [
                 Text(application.permitType, style: SoftType.tileTitle.copyWith(fontSize: 16)),
                 const SizedBox(height: 2),
-                Text(application.referenceNumber, style: SoftType.tileSub),
+                Text(application.displayReference, style: SoftType.tileSub),
                 const SizedBox(height: 8),
                 StatusBadge(label: application.statusLabel),
               ],

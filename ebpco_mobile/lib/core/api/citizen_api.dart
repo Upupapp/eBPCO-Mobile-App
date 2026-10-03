@@ -385,6 +385,10 @@ class CitizenApi {
     required String barangay,
     required String city,
     required String province,
+    // The owner's correction of what they typed, accepted until an
+    // application under the business reaches the office (QA TC-24); 409 after.
+    String? registrationNumber,
+    String? dateRegistered,
   }) async =>
       Business.fromJson(await _client.patch<Map<String, dynamic>>('/businesses/$businessId', body: {
         'name': name,
@@ -393,6 +397,8 @@ class CitizenApi {
         'barangay': barangay,
         'city': city,
         'province': province,
+        'registrationNumber': ?registrationNumber,
+        'dateRegistered': ?dateRegistered,
       }));
 
   Future<Business> deactivateBusiness(String businessId) async =>

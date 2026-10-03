@@ -17,6 +17,7 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import 'order_of_payment_screen.dart';
 import 'payments_list_screen.dart';
 import '../../widgets/message_bar.dart';
 
@@ -38,7 +39,9 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
   ApplicationSummary? _application;
   bool _loading = true;
   bool _submitting = false;
-  String _method = 'Bank Transfer';
+  // Onsite unless the Municipality has published a deposit account (QA TC-25,
+  // 2026-10-03: Bank Transfer opened first, on a "not available yet" notice).
+  String _method = defaultBankInfo != null ? 'Bank Transfer' : 'Onsite';
   String? _proofFileName;
   List<int>? _proofBytes;
   bool _preparingProof = false;
@@ -89,6 +92,26 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
     }
   }
 
+  /// Marking an onsite payment declares that money changed hands, so it is
+  /// asked once, plainly (QA TC-27, 2026-10-03: one tap did it).
+  Future<bool> _confirmOnsite(OrderOfPayment order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Have you paid ${pesos(order.totalCentavos)} at the ${municipalEngineer.name}?'),
+        content: Text(
+          'Only mark it paid once you have paid and have your Official Receipt. Your balance stays '
+          '${pesos(order.totalCentavos)} until the Cashier verifies the payment.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Not yet')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Yes, I have paid')),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _submit() async {
     final order = _application?.orderOfPayment;
     if (order == null) return;
@@ -96,6 +119,8 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
       setState(() => _error = 'Please attach your proof of payment.');
       return;
     }
+    if (_method == 'Onsite' && !await _confirmOnsite(order)) return;
+    if (!mounted) return;
     setState(() {
       _submitting = true;
       _error = null;
@@ -123,9 +148,12 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
       );
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
+      // Says what is true now: the balance stands until the Cashier verifies
+      // the payment (QA TC-27: "this settles your balance" sat above an
+      // unchanged balance).
       ScaffoldMessenger.of(context).showSnackBar(messageBar(result.settles
-            ? 'Payment submitted to the Municipality — this settles your balance, pending verification.'
-            : 'Payment submitted to the Municipality, pending verification.'));
+            ? 'Payment sent for verification. Once the Cashier verifies it, your balance will be settled.'
+            : 'Payment sent for verification.'));
       // The screen that opened this (the application, or Payments) reloads on return.
       Navigator.of(context).pop(true);
     } on ApiError catch (e) {
@@ -160,7 +188,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${app.referenceNumber} · ${app.permitType}', style: SoftType.tileSub.copyWith(color: const Color(0xE6FFFFFF))),
+                            Text('${app.displayReference} · ${app.permitType}', style: SoftType.tileSub.copyWith(color: const Color(0xE6FFFFFF))),
                             const SizedBox(height: 14),
                             Text('Total Assessment', style: SoftType.cellLabel.copyWith(color: const Color(0xCCFFFFFF), fontSize: 13)),
                             const SizedBox(height: 2),
@@ -169,9 +197,29 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    SoftPillButton(
+                      label: 'View Order of Payment',
+                      kind: SoftPillKind.outline,
+                      icon: Icons.receipt_long_outlined,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => OrderOfPaymentScreen(applicationId: widget.applicationId)),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     const SoftSectionHeader(title: 'Payment Method'),
-                    Row(
+                    // Bank Transfer is offered only once the Municipality
+                    // publishes a deposit account (QA TC-25).
+                    if (defaultBankInfo == null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          'Pay onsite at the Municipal Hall. Bank transfer will be offered here once the Municipality '
+                          'publishes its deposit account.',
+                          style: SoftType.body.copyWith(color: SoftColors.muted),
+                        ),
+                      )
+                    else Row(
                       children: [
                         Expanded(
                           child: _MethodCard(

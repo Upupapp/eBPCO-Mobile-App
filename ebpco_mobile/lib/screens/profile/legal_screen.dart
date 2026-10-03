@@ -43,9 +43,8 @@ class _LegalScreenState extends State<LegalScreen> {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-              children: _showPrivacy
-                  ? [
-                      for (final s in privacyPolicySections)
+              children: [
+                      for (final s in _showPrivacy ? privacyPolicySections : termsSections)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: SoftCard(
@@ -60,8 +59,7 @@ class _LegalScreenState extends State<LegalScreen> {
                             ),
                           ),
                         ),
-                    ]
-                  : [SoftCard(child: Text(termsConditionsText, style: SoftType.body.copyWith(color: SoftColors.ink)))],
+                    ],
             ),
           ),
         ],

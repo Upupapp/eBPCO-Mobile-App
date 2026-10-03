@@ -59,6 +59,12 @@ class OrderOfPayment {
       );
 }
 
+const draftReferencePrefix = 'DRAFT-';
+const draftReferenceLabel = 'Draft (no number yet)';
+
+/// The portal's `isTerminalStatus`: completed, withdrawn, rejected or expired.
+const closedStatuses = {'Completed', 'Cancelled', 'Rejected', 'Expired'};
+
 class ApplicationSummary {
   final String id;
   final String referenceNumber;
@@ -120,6 +126,17 @@ class ApplicationSummary {
         'Assessed' => 'Awaiting Payment',
         _ => applicantStatus,
       };
+
+  /// A draft's number, since server migration 064 (QA TC-37, 2026-10-03), is a
+  /// `DRAFT-` placeholder: the official E-BPCO number is assigned when the
+  /// application is filed, so an abandoned draft leaves no gap in the numbering.
+  bool get hasOfficialReference => !referenceNumber.startsWith(draftReferencePrefix);
+
+  /// What to show for the application's number — the portal's `displayReference`.
+  String get displayReference => hasOfficialReference ? referenceNumber : draftReferenceLabel;
+
+  /// Finished one way or another: no progress to show, nothing "active" about it.
+  bool get isClosed => closedStatuses.contains(lifecycleStatus);
 
   factory ApplicationSummary.fromJson(Map<String, dynamic> json) {
     final payment = json['payment'] as Map<String, dynamic>?;
@@ -414,7 +431,23 @@ class PermitInfo {
   final List<String> conditions;
   final PermitRelease? release;
 
-  const PermitInfo({required this.permitNumber, required this.issuedDate, required this.scope, required this.conditions, required this.release});
+  /// What the permit prints about itself, since server migration 064 (QA
+  /// TC-04, TC-18): its last valid day (YYYY-MM-DD), who approved it, for which
+  /// office. Null on a permit issued without them, or from an older server.
+  final String? expiresOn;
+  final String? approvingOfficial;
+  final String? approvingOffice;
+
+  const PermitInfo({
+    required this.permitNumber,
+    required this.issuedDate,
+    required this.scope,
+    required this.conditions,
+    required this.release,
+    this.expiresOn,
+    this.approvingOfficial,
+    this.approvingOffice,
+  });
 
   factory PermitInfo.fromJson(Map<String, dynamic> json) {
     final releaseJson = json['release'] as Map<String, dynamic>?;
@@ -424,6 +457,9 @@ class PermitInfo {
       scope: json['scope'] as String?,
       conditions: (json['conditions'] as List<dynamic>?)?.cast<String>() ?? const [],
       release: releaseJson == null ? null : PermitRelease.fromJson(releaseJson),
+      expiresOn: json['expiresOn'] as String?,
+      approvingOfficial: json['approvingOfficial'] as String?,
+      approvingOffice: json['approvingOffice'] as String?,
     );
   }
 }

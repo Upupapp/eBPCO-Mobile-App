@@ -5,6 +5,7 @@ import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/business_categories.dart';
 import '../../domain/castilla.dart';
+import '../../domain/registration_number.dart';
 import '../../services/businesses_service.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
@@ -40,6 +41,11 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
   Future<void> _submit() async {
     if (_name.text.trim().isEmpty || _street.text.trim().isEmpty || _barangay == null || _registrationNumber.text.trim().isEmpty || _dateRegistered == null) {
       setState(() => _error = 'Please complete all required fields.');
+      return;
+    }
+    // The same check the server makes (QA TC-24, 2026-10-03: "x" was accepted).
+    if (registrationNumberProblem(_registrationNumber.text) case final problem?) {
+      setState(() => _error = problem);
       return;
     }
     setState(() {
@@ -127,8 +133,12 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            const SoftFieldLabel('DTI/SEC Registration Number'),
-            TextField(controller: _registrationNumber, style: SoftType.field),
+            const SoftFieldLabel('DTI / SEC / CDA Registration Number'),
+            TextField(
+              controller: _registrationNumber,
+              style: SoftType.field,
+              decoration: const InputDecoration(hintText: 'As printed on the certificate'),
+            ),
             const SizedBox(height: 16),
             const SoftFieldLabel('Date Registered'),
             SoftPickerField(

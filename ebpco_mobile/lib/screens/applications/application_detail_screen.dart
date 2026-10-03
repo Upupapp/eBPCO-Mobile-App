@@ -22,6 +22,7 @@ import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import '../documents/document_viewer_screen.dart';
+import '../payments/order_of_payment_screen.dart';
 import '../payments/payment_flow_screen.dart';
 import '../payments/payments_list_screen.dart';
 import '../permits/application_wizard_screen.dart';
@@ -350,7 +351,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             () => _open(PaymentFlowScreen(applicationId: app.id), reloadAfter: true)),
       if (showPermit)
         ('View Permit', Icons.verified_outlined,
-            () => _open(PermitDocumentScreen(applicationId: app.id, applicationReference: app.referenceNumber))),
+            () => _open(PermitDocumentScreen(applicationId: app.id, applicationReference: app.displayReference))),
     ];
 
     final IconData nextIcon = step == null
@@ -372,6 +373,14 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       (Icons.account_balance_wallet_outlined, 'Payment', app.paymentStatus),
       (Icons.send_outlined, 'Submitted', _day(app.dateSubmitted)),
       (Icons.update_rounded, 'Last updated', _day(app.updatedAt)),
+      // What the citizen entered in the Details step (QA TC-23, 2026-10-03):
+      // staff saw it, the citizen never did.
+      for (final (icon, label, key) in const [
+        (Icons.construction_outlined, 'Scope of work', 'scopeOfWork'),
+        (Icons.engineering_outlined, 'Professional in charge', 'professionalName'),
+        (Icons.badge_outlined, 'PRC License No.', 'prcNumber'),
+      ])
+        if (app.form[key] case final String value when value.trim().isNotEmpty) (icon, label, value.trim()),
     ];
 
     final chains = groupDocumentChains(_documents);
@@ -450,7 +459,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
         ],
         if (app.orderOfPayment != null) ...[
           const SizedBox(height: 12),
-          _AssessmentCard(order: app.orderOfPayment!, paid: app.paymentStatus == 'Paid'),
+          _AssessmentCard(
+            order: app.orderOfPayment!,
+            paid: app.paymentStatus == 'Paid',
+            pendingVerification: !const {'Not Yet Available', 'Overdue', 'Paid'}.contains(app.paymentStatus),
+            onView: () => _open(OrderOfPaymentScreen(applicationId: app.id)),
+          ),
         ],
         const SizedBox(height: 26),
         const _SectionTitle('Details'),
@@ -588,6 +602,12 @@ class _Header extends StatelessWidget {
           const SizedBox(height: 14),
           Text(app.permitType, style: SoftType.h1.copyWith(color: SoftColors.white, fontSize: 24)),
           const SizedBox(height: 4),
+          if (!app.hasOfficialReference)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(app.displayReference, style: SoftType.cellValue.copyWith(color: _soft, fontSize: 14)),
+            )
+          else
           Material(
             type: MaterialType.transparency,
             child: InkWell(
@@ -998,7 +1018,9 @@ class _DocumentChainCardState extends State<_DocumentChainCard> {
 class _AssessmentCard extends StatelessWidget {
   final OrderOfPayment order;
   final bool paid;
-  const _AssessmentCard({required this.order, required this.paid});
+  final bool pendingVerification;
+  final VoidCallback onView;
+  const _AssessmentCard({required this.order, required this.paid, required this.pendingVerification, required this.onView});
 
   static const _lines = [
     ('filing', 'Filing Fee'),
@@ -1036,7 +1058,11 @@ class _AssessmentCard extends StatelessWidget {
             if ((order.fees[line.$1] ?? 0) > 0) row(line.$2, pesos(order.fees[line.$1]!)),
           const Divider(height: 16, color: SoftColors.line),
           row('Total', pesos(order.totalCentavos), bold: true),
-          row('Balance', pesos(paid ? 0 : order.totalCentavos)),
+          // The balance stands until the Cashier verifies a payment, and says so (QA TC-27).
+          row('Balance', '${pesos(paid ? 0 : order.totalCentavos)}${pendingVerification ? ' — pending verification' : ''}'),
+          const SizedBox(height: 10),
+          // Onsite Payment asks for a copy of the Order (QA TC-26).
+          SoftPillButton(label: 'View Order of Payment', kind: SoftPillKind.outline, icon: Icons.receipt_long_outlined, onPressed: onView),
         ],
       ),
     );
