@@ -162,7 +162,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
               else if (active.isEmpty)
                 SoftEmptyCard(
-                  apps.error != null && apps.applications.isEmpty ? apps.error! : 'No active applications yet. Start one from Services.',
+                  // Someone whose only application is finished was told "No
+                  // active applications yet", as if they had never applied
+                  // (6 Oct 2026 live test).
+                  apps.error != null && apps.applications.isEmpty
+                      ? apps.error!
+                      : apps.applications.isEmpty
+                          ? 'No applications yet. Start one from Services.'
+                          : 'Nothing in progress right now. Your finished applications are under See all.',
                 )
               else
                 ...active.take(4).map((a) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _ApplicationRow(application: a))),
