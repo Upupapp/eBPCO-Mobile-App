@@ -1,6 +1,6 @@
 # Google Play internal testing
 
-Package: `ph.gov.castillasorsogon.ebpco`.
+App name: `Castilla EBPCO`. Package: `castilla.ebpco`.
 
 Use the existing eBPCO upload key if Play already has this package registered.
 Do not use another app's upload key or an Android debug key. Keep the keystore
