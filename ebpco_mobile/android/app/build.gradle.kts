@@ -30,11 +30,8 @@ android {
     }
 
     defaultConfig {
-        // The ID registered for eBPCO Mobile in the castilla-ebpco Firebase
-        // project — the Municipality's own domain (castillasorsogon.gov.ph)
-        // reversed. It must match Firebase or push registration fails, and it
-        // is permanent once the app is on the Play Store.
-        applicationId = "ph.gov.castillasorsogon.ebpco"
+        // Keep this in sync with the Play Console and Firebase Android app.
+        applicationId = "castilla.ebpco"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
