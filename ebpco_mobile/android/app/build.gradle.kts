@@ -1,7 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    for (name in listOf("storeFile", "storePassword", "keyAlias", "keyPassword")) {
+        require(!keystoreProperties.getProperty(name).isNullOrBlank()) {
+            "Missing $name in android/key.properties"
+        }
+    }
 }
 
 android {
@@ -17,11 +30,8 @@ android {
     }
 
     defaultConfig {
-        // The ID registered for eBPCO Mobile in the castilla-ebpco Firebase
-        // project — the Municipality's own domain (castillasorsogon.gov.ph)
-        // reversed. It must match Firebase or push registration fails, and it
-        // is permanent once the app is on the Play Store.
-        applicationId = "ph.gov.castillasorsogon.ebpco"
+        // Keep this in sync with the Play Console and Firebase Android app.
+        applicationId = "castilla.ebpco"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -34,11 +44,30 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+}
+
+// Debug builds remain available without upload credentials. Never produce a
+// release artifact with a debug key or silently leave it unsigned.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project == project && it.name.endsWith("Release") }) {
+        require(keystorePropertiesFile.exists()) {
+            "Release signing requires android/key.properties and the eBPCO upload keystore. See docs/ebpcomobile/PLAY-INTERNAL-TESTING.md."
         }
     }
 }

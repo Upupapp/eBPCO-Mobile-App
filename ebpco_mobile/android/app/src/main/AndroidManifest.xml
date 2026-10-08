@@ -6,10 +6,11 @@
     <!-- file_picker/image_picker (Documents step of the application wizard,
          profile photo). Scoped to media the citizen actively picks via the
          system picker, not broad storage access. -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <application
-        android:label="eBPCO"
+        android:label="Castilla EBPCO"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
