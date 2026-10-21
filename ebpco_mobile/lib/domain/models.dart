@@ -5,6 +5,9 @@
 /// what this app imagines it sends.
 library;
 
+import 'account_verification.dart';
+import 'applying_as.dart';
+
 class Pledge {
   final int pledgedWorkingDays;
   final String? dueDate;
@@ -88,6 +91,10 @@ class ApplicationSummary {
   final String paymentStatus;
   final OrderOfPayment? orderOfPayment;
 
+  /// 'residential' or 'business' (ebpco-api 067). The server derives it; an
+  /// older server's answer is read the same way from the form and business.
+  final String applyingAs;
+
   const ApplicationSummary({
     required this.id,
     required this.referenceNumber,
@@ -108,7 +115,17 @@ class ApplicationSummary {
     required this.pledge,
     required this.paymentStatus,
     required this.orderOfPayment,
+    this.applyingAs = applyingAsBusiness,
   });
+
+  /// Filed for the citizen's home or other private property, not a business.
+  bool get isResidential => applyingAs == applyingAsResidential;
+
+  /// What to show where the business would be: its name, or "Residential".
+  String? get applicantLabel => isResidential ? 'Residential' : businessName;
+
+  /// The property owner a residential application names, when the applicant is not the owner.
+  String? get propertyOwnerName => isResidential ? propertyOwnerNameOf(form) : null;
 
   /// What the status pill reads — the portal's `applicantStatusLabel`. The
   /// citizen's own withdrawal says "Cancelled"; filed under Rejected for
@@ -142,12 +159,15 @@ class ApplicationSummary {
     final payment = json['payment'] as Map<String, dynamic>?;
     final orderOfPaymentJson = payment?['orderOfPayment'] as Map<String, dynamic>?;
     final pledgeJson = json['pledge'] as Map<String, dynamic>?;
+    final form = (json['form'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    final businessId = json['businessId'] as String?;
+    final applyingAs = json['applyingAs'];
     return ApplicationSummary(
       id: json['id'] as String,
       referenceNumber: json['referenceNumber'] as String,
       permitType: json['permitType'] as String,
       applicationAction: json['applicationAction'] as String,
-      businessId: json['businessId'] as String?,
+      businessId: businessId,
       businessName: json['businessName'] as String?,
       location: json['location'] as String?,
       renewsPermitNumber: json['renewsPermitNumber'] as String?,
@@ -158,10 +178,13 @@ class ApplicationSummary {
       dateSubmitted: json['dateSubmitted'] as String?,
       updatedAt: json['updatedAt'] as String? ?? '',
       openInstructionCount: json['openInstructionCount'] as int? ?? 0,
-      form: (json['form'] as Map<String, dynamic>?) ?? const {},
+      form: form,
       pledge: pledgeJson == null ? null : Pledge.fromJson(pledgeJson),
       paymentStatus: payment?['status'] as String? ?? 'Not Yet Available',
       orderOfPayment: orderOfPaymentJson == null ? null : OrderOfPayment.fromJson(orderOfPaymentJson),
+      applyingAs: applyingAs == applyingAsResidential || applyingAs == applyingAsBusiness
+          ? applyingAs as String
+          : applyingAsOf(form, businessId),
     );
   }
 }
@@ -608,12 +631,23 @@ class MeProfile extends CitizenProfile {
   final String? mobileVerifiedAt;
   final bool hasPhoto;
 
+  /// What the citizen said at sign-up they will mainly apply for:
+  /// 'residential', 'business', 'both', or null (never asked). Only a
+  /// starting point for the wizard's "Applying as".
+  final String? registeredAs;
+
+  /// Where the account's verification stands (ebpco-api 067); null from an
+  /// older server. Filing needs 'verified'.
+  final AccountVerification? verification;
+
   const MeProfile({
     required this.id,
     required this.email,
     required this.emailVerifiedAt,
     required this.mobileVerifiedAt,
     required this.hasPhoto,
+    this.registeredAs,
+    this.verification,
     required super.firstName,
     required super.middleName,
     required super.lastName,
@@ -637,6 +671,10 @@ class MeProfile extends CitizenProfile {
       emailVerifiedAt: json['emailVerifiedAt'] as String?,
       mobileVerifiedAt: json['mobileVerifiedAt'] as String?,
       hasPhoto: json['hasPhoto'] as bool? ?? false,
+      registeredAs: json['registeredAs'] as String?,
+      verification: json['verification'] is Map<String, dynamic>
+          ? AccountVerification.fromJson(json['verification'] as Map<String, dynamic>)
+          : null,
       firstName: base.firstName,
       middleName: base.middleName,
       lastName: base.lastName,

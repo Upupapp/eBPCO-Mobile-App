@@ -10,30 +10,41 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../domain/account_verification.dart';
+import '../../domain/applying_as.dart';
 import '../../domain/models.dart';
 import '../../domain/draft_resume.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
+import '../../services/session_service.dart';
 import '../../services/upload_limits.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/choice_card.dart';
 import '../../widgets/document_library_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
+import '../profile/account_verification_screen.dart';
 import '../profile/legal_screen.dart';
 import '../../widgets/blank_form_link.dart';
 import '../../widgets/message_bar.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
-/// `application-wizard.page.ts`: 4 steps (Business & Type → Details →
+/// `application-wizard.page.ts`: 4 steps (Applying as & Type → Details →
 /// Documents → Review & Submit), a real Draft created after Step 1 and
 /// kept current with `PATCH /applications/{id}` as the citizen moves
 /// forward, finished with `POST /applications/{id}/submit`.
+///
+/// Every application asks "Applying as" (ebpco-api 067): Residential /
+/// Private Individual needs no business, only who owns the property;
+/// Business picks one of the citizen's businesses. Submitting needs a
+/// verified account; until then the draft is saved and the citizen is told
+/// why it cannot be submitted yet.
 class ApplicationWizardScreen extends StatefulWidget {
   /// Set when starting fresh from the catalog.
   final String? permitType;
@@ -74,6 +85,19 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   late String _permitType;
   String _applicationAction = 'New';
   String? _businessId;
+
+  /// 'residential' or 'business'; null until chosen. Starts on what the
+  /// citizen chose at sign-up, if that was one of the two.
+  String? _applyingAs;
+
+  /// "Do you own the property?" on a residential application; null until answered.
+  bool? _ownsProperty;
+  final _ownerName = TextEditingController();
+  final _ownerRelationship = TextEditingController();
+
+  /// The draft's form as loaded. PATCH replaces the whole form, so keys this
+  /// screen does not edit are sent back as they were.
+  Map<String, dynamic> _savedForm = const {};
 
   /// The permit a Renewal/Amendment is about. Checked against eBPCO's own
   /// issued permits (`renewsPermitNumber`) unless [_paperPermit] — then sent
@@ -122,9 +146,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     super.initState();
     _applications = context.read<ApplicationsService>();
     _permitType = widget.permitType ?? '';
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => context.read<BusinessesService>().refresh(),
-    );
+    final session = context.read<SessionService>();
+    _applyingAs = defaultApplyingAs(session.profile?.registeredAs);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BusinessesService>().refresh();
+      // Whether the account may submit yet: it may have been verified since sign-in.
+      session.refreshProfile().catchError((_) {});
+    });
     _loadLibrary();
     if (_isResuming) {
       _draftId = widget.draftId;
@@ -145,6 +173,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _scopeOfWork,
       _professionalName,
       _prcNumber,
+      _ownerName,
+      _ownerRelationship,
     ]) {
       c.dispose();
     }
@@ -158,6 +188,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _permitType = app.permitType;
       _applicationAction = app.applicationAction;
       _businessId = app.businessId;
+      _savedForm = app.form;
+      _applyingAs = savedApplyingAs(app.form, app.businessId) ?? _applyingAs;
+      final owner = PropertyOwner.fromForm(app.form);
+      _ownsProperty = owner?.isApplicant;
+      _ownerName.text = owner?.name ?? '';
+      _ownerRelationship.text = owner?.relationship ?? '';
       _paperPermit = app.renewsPermitNumber == null && app.priorPermitClaim != null;
       _permitNumber.text = app.renewsPermitNumber ?? app.priorPermitClaim ?? '';
       if (app.renewsPermitNumber != null) {
@@ -174,8 +210,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       // on the way forward. A business not loaded yet does not hold them back.
       final business = context.read<BusinessesService>().businesses.where((b) => b.id == _businessId);
       _goTo(resumeStep(
-        applicantDone: _businessId != null &&
-            (business.isEmpty || business.first.isActive) &&
+        applicantDone: _applyingAsProblem == null &&
+            (_isResidential || business.isEmpty || business.first.isActive) &&
             (!_needsPermitReference || app.renewsPermitNumber != null || app.priorPermitClaim != null),
         detailsDone: _projectAddress.text.trim().isNotEmpty && _scopeOfWork.text.trim().isNotEmpty,
         documentsDone: _requiredDocumentsComplete,
@@ -216,6 +252,39 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   bool get _needsPermitReference => _applicationAction != 'New';
 
+  bool get _isResidential => _applyingAs == applyingAsResidential;
+
+  /// The business this application is for: none on a residential one.
+  String? get _effectiveBusinessId => _isResidential ? null : _businessId;
+
+  PropertyOwner? get _propertyOwner => _ownsProperty == null
+      ? null
+      : PropertyOwner(isApplicant: _ownsProperty!, name: _ownerName.text, relationship: _ownerRelationship.text);
+
+  /// What "Applying as" still lacks, or null.
+  String? get _applyingAsProblem => applyingAsProblem(
+        applyingAs: _applyingAs,
+        businessId: _businessId,
+        ownsProperty: _ownsProperty,
+        ownerName: _ownerName.text,
+      );
+
+  /// The whole form, as PATCH replaces it.
+  Map<String, dynamic> _form() => applicationForm(
+        previous: _savedForm,
+        applyingAs: _applyingAs,
+        propertyOwner: _propertyOwner,
+        scopeOfWork: _scopeOfWork.text,
+        professionalName: _professionalName.text,
+        prcNumber: _prcNumber.text,
+      );
+
+  void _chooseApplyingAs(String value) => setState(() {
+        _applyingAs = value;
+        _error = null;
+        _invalidatePermitCheck();
+      });
+
   String get _typedPermitNumber => _permitNumber.text.trim().toUpperCase();
 
   /// Which of the two reference fields to send, and with what. On a draft
@@ -241,14 +310,14 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Future<void> _toStep2() async {
-    if (_businessId == null) {
-      setState(() => _error = 'Please select a business.');
+    if (_applyingAsProblem case final problem?) {
+      setState(() => _error = problem);
       return;
     }
     final chosen = context.read<BusinessesService>().businesses.where(
       (b) => b.id == _businessId,
     );
-    if (chosen.isNotEmpty && !chosen.first.isActive) {
+    if (!_isResidential && chosen.isNotEmpty && !chosen.first.isActive) {
       setState(
         () => _error = 'This business is inactive. Reactivate it before applying for a permit.',
       );
@@ -271,7 +340,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         final check = await _api.renewalCheck(
           permitNumber: _typedPermitNumber,
           permitType: _permitType,
-          businessId: _businessId,
+          businessId: _effectiveBusinessId,
         );
         if (!mounted) return;
         if (!check.valid) {
@@ -288,16 +357,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         final created = await _api.submit(
           permitType: _permitType,
           applicationAction: _applicationAction,
-          businessId: _businessId,
+          businessId: _effectiveBusinessId,
           renewsPermitNumber: refs['renewsPermitNumber'],
           priorPermitClaim: refs['priorPermitClaim'],
+          form: _form(),
           saveAsDraft: true,
         );
         _draftId = created.id;
       } else {
         await _api.updateDraft(_draftId!, {
           'applicationAction': _applicationAction,
-          'businessId': _businessId,
+          'businessId': _effectiveBusinessId,
+          'form': _form(),
           ...refs,
         });
       }
@@ -315,7 +386,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     if (_projectAddress.text.trim().isEmpty ||
         _scopeOfWork.text.trim().isEmpty) {
       setState(
-        () => _error = 'Please complete the project address and scope of work.',
+        () => _error = 'Please complete the project / property address and scope of work.',
       );
       return;
     }
@@ -332,15 +403,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     try {
       await _api.updateDraft(_draftId!, {
         'location': _projectAddress.text.trim(),
-        'form': {
-          'scopeOfWork': _scopeOfWork.text.trim(),
-          'professionalName': _professionalName.text.trim().isEmpty
-              ? null
-              : _professionalName.text.trim(),
-          'prcNumber': _prcNumber.text.trim().isEmpty
-              ? null
-              : _prcNumber.text.trim(),
-        },
+        'form': _form(),
       });
       if (!mounted) return;
       _goTo(3);
@@ -541,24 +604,15 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         if (_step == 1) {
           await _api.updateDraft(_draftId!, {
             'applicationAction': _applicationAction,
-            'businessId': _businessId,
+            'businessId': _effectiveBusinessId,
+            'form': _form(),
             ..._referenceFields(),
           });
         } else if (_step == 2) {
           await _api.updateDraft(_draftId!, {
             if (_projectAddress.text.trim().isNotEmpty)
               'location': _projectAddress.text.trim(),
-            'form': {
-              'scopeOfWork': _scopeOfWork.text.trim().isEmpty
-                  ? null
-                  : _scopeOfWork.text.trim(),
-              'professionalName': _professionalName.text.trim().isEmpty
-                  ? null
-                  : _professionalName.text.trim(),
-              'prcNumber': _prcNumber.text.trim().isEmpty
-                  ? null
-                  : _prcNumber.text.trim(),
-            },
+            'form': _form(),
           });
         } else {
           await _attachPending();
@@ -607,7 +661,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       );
     } on ApiError catch (e) {
       if (!mounted) return;
+      // 422: the account is not verified yet, or "Applying as" is incomplete.
+      // The detail is a whole sentence for the citizen; the draft stays saved.
       setState(() => _error = e.citizenMessage);
+      if (e.status == 422) {
+        context.read<SessionService>().refreshProfile().catchError((_) {});
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -706,7 +765,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Business & type', style: SoftType.h1.copyWith(fontSize: 24)),
+        Text('Applicant & type', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 18),
         _label('Permit Type'),
         SoftCard(
@@ -725,80 +784,35 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        _label('Business'),
-        if (active.isEmpty && businesses.error != null && !businesses.loading)
-          SoftCard(
-            color: SoftColors.pendingCream,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  businesses.error!,
-                  style: SoftType.body.copyWith(color: SoftColors.pendingInk),
-                ),
-                const SizedBox(height: 10),
-                SoftPillButton(
-                  label: 'Try again',
-                  kind: SoftPillKind.outline,
-                  icon: Icons.refresh_rounded,
-                  onPressed: () => context.read<BusinessesService>().refresh(),
-                ),
-              ],
-            ),
-          )
-        else if (active.isEmpty)
-          SoftCard(
-            color: SoftColors.primaryWash,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  businesses.loading
-                      ? 'Loading your businesses…'
-                      : 'No active businesses.',
-                  style: SoftType.body.copyWith(color: SoftColors.ink),
-                ),
-                if (!businesses.loading) ...[
-                  const SizedBox(height: 10),
-                  SoftPillButton(
-                    label: 'Register one first',
-                    kind: SoftPillKind.outline,
-                    icon: Icons.add_rounded,
-                    onPressed: () => Navigator.of(context)
-                        .push(
-                          MaterialPageRoute(
-                            builder: (_) => const RegisterBusinessScreen(),
-                          ),
-                        )
-                        .then((_) {
-                          if (mounted) {
-                            context.read<BusinessesService>().refresh();
-                          }
-                        }),
-                  ),
-                ],
-              ],
-            ),
-          )
-        else
-          DropdownButtonFormField<String>(
-            initialValue: active.any((b) => b.id == _businessId)
-                ? _businessId
-                : null,
-            hint: const Text('Select a business'),
-            isExpanded: true,
-            borderRadius: BorderRadius.circular(SoftRadius.md),
-            items: active
-                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
-                .toList(),
-            onChanged: (v) => setState(() {
-              _businessId = v;
-              _error = null;
-              _invalidatePermitCheck();
-            }),
-          ),
+        _label('Applying as'),
+        SoftChoiceCard(
+          icon: Icons.home_outlined,
+          title: applyingAsLabel(applyingAsResidential),
+          subtitle: 'Your home or other private property',
+          selected: _isResidential,
+          onTap: () => _chooseApplyingAs(applyingAsResidential),
+        ),
+        const SizedBox(height: 10),
+        SoftChoiceCard(
+          icon: Icons.storefront_outlined,
+          title: applyingAsLabel(applyingAsBusiness),
+          subtitle: 'A business or commercial establishment',
+          selected: _applyingAs == applyingAsBusiness,
+          onTap: () => _chooseApplyingAs(applyingAsBusiness),
+        ),
+        if (applyingAsHint(permitType: _permitType, applyingAs: _applyingAs) case final hint?) ...[
+          const SizedBox(height: 10),
+          _note(hint),
+        ],
+        if (_isResidential) ...[
+          const SizedBox(height: 18),
+          _propertyOwnerFields(),
+        ],
+        if (_applyingAs == applyingAsBusiness) ...[
+          const SizedBox(height: 18),
+          _label('Business'),
+          _businessPicker(businesses, active),
+        ],
         const SizedBox(height: 18),
         _label('Application Type'),
         Row(
@@ -850,7 +864,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             Text(
               _paperPermit
                   ? 'The office checks this against the copy of the permit you upload in the Documents step.'
-                  : 'Checked against permits eBPCO issued to the selected business before you can continue.',
+                  : _isResidential
+                      ? 'Checked against permits eBPCO issued to you before you can continue.'
+                      : 'Checked against permits eBPCO issued to the selected business before you can continue.',
               style: SoftType.cellLabel,
             ),
           const SizedBox(height: 4),
@@ -878,6 +894,146 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         _errorLine(),
         SoftPillButton(label: 'Continue', busy: _busy, onPressed: _toStep2),
       ],
+    );
+  }
+
+  /// A quiet line of guidance with an info mark: never blocks anything.
+  Widget _note(String text) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: SoftColors.pendingInk),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text, style: SoftType.cellLabel.copyWith(color: SoftColors.pendingInk)),
+          ),
+        ],
+      );
+
+  /// Residential: no business, only who owns the property.
+  Widget _propertyOwnerFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _label('Do you own the property?'),
+        Row(
+          children: [
+            for (final (i, (label, owns)) in const [('Yes', true), ('No', false)].indexed) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: SoftFilterChip(
+                    label: label,
+                    selected: _ownsProperty == owns,
+                    onTap: () => setState(() {
+                      _ownsProperty = owns;
+                      _error = null;
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (_ownsProperty == false) ...[
+          const SizedBox(height: 16),
+          _label("Property Owner's Full Name"),
+          TextField(
+            controller: _ownerName,
+            style: SoftType.field,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            decoration: const InputDecoration(hintText: 'As written on the title or tax declaration'),
+          ),
+          const SizedBox(height: 16),
+          _label('Your Relationship to the Owner (optional)'),
+          TextField(
+            controller: _ownerRelationship,
+            style: SoftType.field,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(hintText: 'e.g. Son, Daughter, Spouse, Tenant'),
+          ),
+          const SizedBox(height: 10),
+          _note("Upload the owner's written consent or authorization with your documents."),
+        ],
+      ],
+    );
+  }
+
+  /// Business: one of the citizen's active businesses, or the way to register one.
+  Widget _businessPicker(BusinessesService businesses, List<Business> active) {
+    if (active.isEmpty && businesses.error != null && !businesses.loading) {
+      return SoftCard(
+        color: SoftColors.pendingCream,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              businesses.error!,
+              style: SoftType.body.copyWith(color: SoftColors.pendingInk),
+            ),
+            const SizedBox(height: 10),
+            SoftPillButton(
+              label: 'Try again',
+              kind: SoftPillKind.outline,
+              icon: Icons.refresh_rounded,
+              onPressed: () => context.read<BusinessesService>().refresh(),
+            ),
+          ],
+        ),
+      );
+    }
+    if (active.isEmpty) {
+      return SoftCard(
+        color: SoftColors.primaryWash,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              businesses.loading
+                  ? 'Loading your businesses…'
+                  : 'You have no active business yet. Register it here, or choose Residential / '
+                      'Private Individual if this is for your home or other private property.',
+              style: SoftType.body.copyWith(color: SoftColors.ink),
+            ),
+            if (!businesses.loading) ...[
+              const SizedBox(height: 10),
+              SoftPillButton(
+                label: 'Register a Business',
+                kind: SoftPillKind.outline,
+                icon: Icons.add_rounded,
+                onPressed: () => Navigator.of(context)
+                    .push(
+                      MaterialPageRoute(
+                        builder: (_) => const RegisterBusinessScreen(),
+                      ),
+                    )
+                    .then((_) {
+                      if (mounted) {
+                        context.read<BusinessesService>().refresh();
+                      }
+                    }),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: active.any((b) => b.id == _businessId) ? _businessId : null,
+      hint: const Text('Select a business'),
+      isExpanded: true,
+      borderRadius: BorderRadius.circular(SoftRadius.md),
+      items: active.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
+      onChanged: (v) => setState(() {
+        _businessId = v;
+        _error = null;
+        _invalidatePermitCheck();
+      }),
     );
   }
 
@@ -909,7 +1065,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       children: [
         Text('Project details', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 18),
-        _label('Project / Business Address'),
+        _label('Project / Property Address'),
         TextField(
           controller: _projectAddress,
           style: SoftType.field,
@@ -1117,6 +1273,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       ),
     );
 
+    final verification = context.watch<SessionService>().verification;
+    final blocked = filingBlockedMessage(verification);
+    final businessName = context
+        .watch<BusinessesService>()
+        .businesses
+        .where((b) => b.id == _businessId)
+        .map((b) => b.name)
+        .firstOrNull;
+    final owner = _ownerName.text.trim();
+    final relationship = _ownerRelationship.text.trim();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1131,7 +1298,23 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               const Divider(height: 1, color: SoftColors.line),
               row('Application type', _applicationAction),
               const Divider(height: 1, color: SoftColors.line),
-              row('Address', _projectAddress.text),
+              row('Applying as', applyingAsLabel(_applyingAs)),
+              const Divider(height: 1, color: SoftColors.line),
+              if (_isResidential)
+                row(
+                  'Property owner',
+                  _ownsProperty == false
+                      ? (relationship.isEmpty ? owner : '$owner ($relationship)')
+                      : 'You (the applicant)',
+                )
+              else
+                row('Business', businessName ?? 'Not chosen'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: () => _goTo(1), child: const Text('Edit')),
+              ),
+              const Divider(height: 1, color: SoftColors.line),
+              row('Project / Property Address', _projectAddress.text),
               const Divider(height: 1, color: SoftColors.line),
               row('Scope of Work', _scopeOfWork.text),
               const Divider(height: 1, color: SoftColors.line),
@@ -1152,72 +1335,111 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          'Submitting moves this out of Draft and sends it for review. You can also save it as a draft and finish it later.',
-          style: SoftType.body,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Checkbox(
-              value: _understandRequirements,
-              onChanged: (v) =>
-                  setState(() => _understandRequirements = v ?? false),
-            ),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(
-                  () => _understandRequirements = !_understandRequirements,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    'I understand the application requirements and certify the information provided is true and correct.',
-                    style: SoftType.body.copyWith(color: SoftColors.ink),
+        if (blocked != null)
+          ..._notVerifiedYet(blocked, verification)
+        else ...[
+          Text(
+            'Submitting moves this out of Draft and sends it for review. You can also save it as a draft and finish it later.',
+            style: SoftType.body,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _understandRequirements,
+                onChanged: (v) =>
+                    setState(() => _understandRequirements = v ?? false),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(
+                    () => _understandRequirements = !_understandRequirements,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'I understand the application requirements and certify the information provided is true and correct.',
+                      style: SoftType.body.copyWith(color: SoftColors.ink),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            Checkbox(
-              value: _agreeTerms,
-              onChanged: (v) => setState(() => _agreeTerms = v ?? false),
-            ),
-            GestureDetector(
-              onTap: () => setState(() => _agreeTerms = !_agreeTerms),
-              child: Text(
-                'I agree to the ',
-                style: SoftType.body.copyWith(color: SoftColors.ink),
+            ],
+          ),
+          Row(
+            children: [
+              Checkbox(
+                value: _agreeTerms,
+                onChanged: (v) => setState(() => _agreeTerms = v ?? false),
               ),
-            ),
-            GestureDetector(
-              onTap: () => Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => const LegalScreen())),
-              child: Text(
-                'Terms & Conditions',
-                style: SoftType.sectionLink.copyWith(fontSize: 14),
+              GestureDetector(
+                onTap: () => setState(() => _agreeTerms = !_agreeTerms),
+                child: Text(
+                  'I agree to the ',
+                  style: SoftType.body.copyWith(color: SoftColors.ink),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _navRow(
-          onBack: () => _goTo(3),
-          nextLabel: 'Submit Application',
-          onNext: _submit,
-        ),
-        const SizedBox(height: 8),
-        SoftPillButton(
-          label: 'Save as Draft & Exit',
-          kind: SoftPillKind.text,
-          onPressed: _busy ? null : _saveAndExit,
-        ),
+              GestureDetector(
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => const LegalScreen())),
+                child: Text(
+                  'Terms & Conditions',
+                  style: SoftType.sectionLink.copyWith(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _navRow(
+            onBack: () => _goTo(3),
+            nextLabel: 'Submit Application',
+            onNext: _submit,
+          ),
+          const SizedBox(height: 8),
+          SoftPillButton(
+            label: 'Save as Draft & Exit',
+            kind: SoftPillKind.text,
+            onPressed: _busy ? null : _saveAndExit,
+          ),
+        ],
       ],
     );
+  }
+
+  /// Not verified yet (ebpco-api 067): the draft is kept and the citizen is
+  /// told why it cannot be submitted, with the way to send an ID.
+  List<Widget> _notVerifiedYet(String message, AccountVerification? verification) {
+    final rejected = verification?.isRejected ?? false;
+    return [
+      SoftCard(
+        color: rejected ? SoftColors.dangerSoft : SoftColors.pendingCream,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(message, style: SoftType.body.copyWith(color: SoftColors.ink)),
+            if (!(verification?.isPending ?? true)) ...[
+              const SizedBox(height: 12),
+              SoftPillButton(
+                label: rejected ? 'Upload again' : 'Verify my account',
+                kind: SoftPillKind.outline,
+                icon: Icons.badge_outlined,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AccountVerificationScreen()),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      _navRow(
+        onBack: () => _goTo(3),
+        nextLabel: 'Save Draft & Exit',
+        onNext: _saveAndExit,
+      ),
+    ];
   }
 }
 

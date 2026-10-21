@@ -368,6 +368,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
 
     final details = <(IconData, String, String)>[
       (Icons.category_outlined, 'Application type', app.applicationAction),
+      // A residential application filed for someone else's property names the owner.
+      if (app.propertyOwnerName case final owner?) (Icons.person_outline_rounded, 'Property owner', owner),
       if (app.renewsPermitNumber case final permit?)
         (Icons.autorenew_rounded, app.applicationAction == 'Renewal' ? 'Renewing permit' : 'Amending permit', permit),
       (Icons.account_balance_wallet_outlined, 'Payment', app.paymentStatus),
@@ -639,13 +641,15 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
-          if (app.businessName != null || app.location != null) ...[
+          if (app.applicantLabel != null || app.location != null) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 16,
               runSpacing: 6,
               children: [
-                if (app.businessName case final business?) _meta(Icons.storefront_outlined, business),
+                // The business, or "Residential" for a home or other private property (ebpco-api 067).
+                if (app.applicantLabel case final applicant?)
+                  _meta(app.isResidential ? Icons.home_outlined : Icons.storefront_outlined, applicant),
                 if (app.location case final place?) _meta(Icons.place_outlined, place),
               ],
             ),

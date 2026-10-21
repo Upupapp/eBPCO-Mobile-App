@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../core/api/citizen_api.dart';
 import '../core/api/problem.dart';
 import '../core/api/token_store.dart';
+import '../domain/account_verification.dart';
 import '../domain/models.dart';
 import '../domain/profile_photo.dart';
 import 'push_service.dart';
@@ -33,6 +34,10 @@ class SessionService extends ChangeNotifier {
   Uint8List? get photo => _photo;
   String? get lastError => _lastError;
   bool get isSignedIn => _state == SessionState.signedIn;
+
+  /// Where the account's verification stands (ebpco-api 067); null from an
+  /// older server, which never blocks filing.
+  AccountVerification? get verification => _profile?.verification;
 
   /// Called once at app start: a stored access token (even if just
   /// expired — [ApiClient] refreshes proactively) means try to restore the
@@ -140,6 +145,24 @@ class SessionService extends ChangeNotifier {
     _photo = photo.bytes;
     notifyListeners();
     unawaited(refreshProfile().catchError((_) {}));
+  }
+
+  /// `PUT /me/verification` with the citizen's valid ID, then `/me` again so
+  /// Profile, Home and the wizard all show it waiting for verification.
+  Future<void> submitVerification({
+    required String idType,
+    required String idNumber,
+    required PreparedPhoto front,
+    PreparedPhoto? back,
+  }) async {
+    await _api.submitVerification(
+      verificationRequestBody(idType: idType, idNumber: idNumber, front: front, back: back),
+    );
+    try {
+      await refreshProfile();
+    } catch (_) {
+      // Sent all the same; the next refresh shows it.
+    }
   }
 
   Future<void> removePhoto() async {

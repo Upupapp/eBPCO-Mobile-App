@@ -4,8 +4,9 @@
 /// page of an application they already filled in. Every field stays
 /// editable through Back. The portal decides the same way (`draft-resume.ts`).
 ///
-/// [applicantDone]: a business is chosen (and not known to be inactive), and
-/// a Renewal or Amendment names its permit. [detailsDone]: the project
+/// [applicantDone]: "Applying as" is answered — a business chosen (and not
+/// known to be inactive), or, for Residential, who owns the property — and a
+/// Renewal or Amendment names its permit. [detailsDone]: the project
 /// address and scope of work are filled in. [documentsDone]: every required
 /// document is attached.
 int resumeStep({required bool applicantDone, required bool detailsDone, required bool documentsDone}) {

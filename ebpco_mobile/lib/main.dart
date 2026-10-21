@@ -37,6 +37,9 @@ class EbpcoMobileApp extends StatelessWidget {
       ..onForegroundMessage = () {
         _notifications.refresh();
         _applications.refresh();
+        // "Your account is verified" / "Your ID was not accepted" change what
+        // Home, Profile and the wizard show.
+        _session.refreshProfile().catchError((_) {});
       }
       ..onOpen = _openNotice;
   }

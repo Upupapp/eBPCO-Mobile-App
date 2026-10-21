@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/account_verification.dart';
 import '../../domain/models.dart';
 import '../../services/applications_service.dart';
 import '../../services/notifications_service.dart';
@@ -15,6 +16,7 @@ import '../applications/my_applications_screen.dart';
 import '../business/business_list_screen.dart';
 import '../payments/payments_list_screen.dart';
 import '../permits/permit_catalog_screen.dart';
+import '../profile/account_verification_screen.dart';
 import 'root_shell.dart';
 
 /// Home — the design reference's home layout (seal and round bell on the
@@ -39,6 +41,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Future.wait([
       context.read<ApplicationsService>().refresh(),
       context.read<NotificationsService>().refresh(),
+      // The account may have been verified since sign-in.
+      context.read<SessionService>().refreshProfile().catchError((_) {}),
     ]);
   }
 
@@ -55,6 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Open applications only: a completed, withdrawn, rejected or expired one
     // is not "active" (QA TC-33, 2026-10-03).
     final active = apps.applications.where((a) => !a.isClosed).toList();
+    final verification = verificationBanner(session.verification);
 
     return SoftWash(
       child: SafeArea(
@@ -101,6 +106,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 6),
               Text('Your permit services for Castilla, Sorsogon.', style: SoftType.body.copyWith(fontSize: 15)),
               const SizedBox(height: 18),
+              if (verification != null) ...[
+                _VerificationBanner(
+                  title: verification.title,
+                  body: verification.body,
+                  action: verification.action,
+                  rejected: session.verification?.isRejected ?? false,
+                  onAction: () => _push(const AccountVerificationScreen()),
+                ),
+                const SizedBox(height: 14),
+              ],
               if (apps.awaitingActionCount > 0)
                 _Callout(
                   icon: Icons.priority_high_rounded,
@@ -214,6 +229,64 @@ class _Callout extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Not verified yet (ebpco-api 067): what that means, and the way to send an ID.
+class _VerificationBanner extends StatelessWidget {
+  final String title;
+  final String? body;
+  final String? action;
+  final bool rejected;
+  final VoidCallback onAction;
+  const _VerificationBanner({
+    required this.title,
+    required this.body,
+    required this.action,
+    required this.rejected,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = rejected ? SoftColors.danger : SoftColors.pendingInk;
+    return SoftCard(
+      color: rejected ? SoftColors.dangerSoft : SoftColors.pendingCream,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(color: SoftColors.white, borderRadius: BorderRadius.circular(SoftRadius.sm)),
+                child: Icon(rejected ? Icons.error_outline_rounded : Icons.badge_outlined, color: ink, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: SoftType.tileTitle.copyWith(fontSize: 17, fontWeight: FontWeight.w600)),
+                    if (body != null) ...[
+                      const SizedBox(height: 4),
+                      Text(body!, style: SoftType.body.copyWith(color: SoftColors.muted)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (action != null) ...[
+            const SizedBox(height: 14),
+            SoftPillButton(label: action!, icon: Icons.badge_outlined, onPressed: onAction),
+          ],
         ],
       ),
     );

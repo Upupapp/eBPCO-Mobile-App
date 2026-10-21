@@ -1,23 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../domain/account_verification.dart';
 import '../../domain/castilla.dart';
 import '../../domain/password_policy.dart';
+import '../../services/session_service.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/choice_card.dart';
 import '../../widgets/password_checklist.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/valid_id_form.dart';
 import '../profile/legal_screen.dart';
 import 'registration_success_screen.dart';
 
-/// Three steps — Personal, Contact (incl. real email verification), Security
-/// — with the same rules as the citizen portal's `register.page.ts`: 18+,
-/// 09XXXXXXXXX mobile, 4-digit postal code, the server's password policy,
-/// Terms and Privacy both agreed, and the portal's escape hatch when the
-/// Municipality cannot send a verification code at all.
+/// Sign Up → Select Applicant Type → Enter Required Information → Create
+/// Account (owner request 2026-10-21, ebpco-api 067), the same as the
+/// citizen portal's `register.page.ts`: Applicant type, Personal, Contact
+/// (incl. real email verification), Valid ID, Security — with the portal's
+/// rules: 18+, 09XXXXXXXXX mobile, 4-digit postal code, the server's password
+/// policy, Terms and Privacy both agreed, and the portal's escape hatch when
+/// the Municipality cannot send a verification code at all.
+///
+/// Creating the account also signs in and sends the valid ID, so the account
+/// is waiting for verification right away. A business is never required.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -44,7 +54,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
   bool _submitting = false;
 
-  // Step 1 — Personal
+  // Step 1 — Applicant type: 'residential', 'business' or 'both'. Only a
+  // starting point; every application asks again.
+  String? _registeredAs;
+
+  // Step 2 — Personal
   final _firstName = TextEditingController();
   final _middleName = TextEditingController();
   final _lastName = TextEditingController();
@@ -54,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _nationality = 'Filipino';
   final _otherNationality = TextEditingController();
 
-  // Step 2 — Contact
+  // Step 3 — Contact
   final _email = TextEditingController();
   final _mobile = TextEditingController();
   final _street = TextEditingController();
@@ -70,7 +84,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _skipVerification;
   String _verifiedFor = '';
 
-  // Step 3 — Security
+  // Step 4 — Valid ID
+  final _validId = ValidIdDraft();
+
+  // Step 5 — Security
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
   bool _obscure = true;
@@ -93,6 +110,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ]) {
       c.dispose();
     }
+    _validId.dispose();
     super.dispose();
   }
 
@@ -118,7 +136,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return age;
   }
 
-  void _toStep2() {
+  void _afterApplicantType() {
+    if (_registeredAs == null) {
+      setState(() => _error = 'Choose what you will mainly apply for.');
+      return;
+    }
+    _goTo(2);
+  }
+
+  void _afterPersonal() {
     if (_firstName.text.trim().isEmpty ||
         _lastName.text.trim().isEmpty ||
         _dob == null ||
@@ -135,7 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'Please specify your nationality.');
       return;
     }
-    _goTo(2);
+    _goTo(3);
   }
 
   Future<void> _sendCode() async {
@@ -206,7 +232,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _toStep3() {
+  void _afterContact() {
     final missing = <(bool, String)>[
       (_email.text.trim().isEmpty, 'Email Address'),
       (_mobile.text.trim().isEmpty, 'Mobile Number'),
@@ -235,7 +261,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'Please confirm the code sent to your email, or use Resend Code if it did not arrive.');
       return;
     }
-    _goTo(3);
+    _goTo(4);
+  }
+
+  void _afterValidId() {
+    final problem = _validId.problem;
+    if (problem != null) {
+      setState(() => _error = problem);
+      return;
+    }
+    _goTo(5);
   }
 
   PasswordContext get _passwordContext =>
@@ -255,6 +290,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'You must agree to the Terms & Conditions and Privacy Policy.');
       return;
     }
+    final session = context.read<SessionService>();
+    final email = _email.text.trim();
+    final password = _password.text;
     setState(() {
       _submitting = true;
       _error = null;
@@ -268,23 +306,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
         sex: _sex!,
         civilStatus: _civilStatus!,
         nationality: _nationality == 'Other' ? _otherNationality.text.trim() : _nationality,
-        email: _email.text.trim(),
+        email: email,
         mobileNumber: _mobile.text.trim(),
         street: _street.text.trim(),
         barangay: _barangay!,
         city: castillaCity,
         province: castillaProvince,
         postalCode: _postal.text.trim(),
-        password: _password.text,
+        password: password,
+        registeredAs: _registeredAs,
       );
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RegistrationSuccessScreen()));
     } on ApiError catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.citizenMessage);
-    } finally {
-      if (mounted) setState(() => _submitting = false);
+      setState(() {
+        _error = e.citizenMessage;
+        _submitting = false;
+      });
+      return;
     }
+
+    // Then sign in with the same email and password and send the ID, so the
+    // account is waiting for verification at once. Neither failing fails
+    // sign-up: the success screen says to sign in and upload the ID under
+    // Profile instead. Nothing here says whether the email was already in
+    // use; the server answers registration the same way either way.
+    var signedIn = false;
+    var idSent = false;
+    try {
+      signedIn = await session.login(email, password);
+      if (signedIn) {
+        await session.submitVerification(
+          idType: _validId.idType!,
+          idNumber: _validId.idNumber.text,
+          front: _validId.front!,
+          back: _validId.back,
+        );
+        idSent = true;
+      }
+    } catch (_) {
+      // Told on the success screen.
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => RegistrationSuccessScreen(signedIn: signedIn, idSent: idSent)),
+    );
   }
 
   void _openLegal({required bool privacy}) =>
@@ -292,7 +358,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const titles = ['Personal details', 'Contact & address', 'Secure your account'];
+    const titles = ['Select applicant type', 'Personal details', 'Contact & address', 'Valid ID', 'Secure your account'];
     return SoftPageScaffold(
       title: 'Create Account',
       body: SingleChildScrollView(
@@ -305,9 +371,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 18),
             Text(titles[_step - 1], style: SoftType.h1.copyWith(fontSize: 24)),
             const SizedBox(height: 18),
-            if (_step == 1) _personalStep(),
-            if (_step == 2) _contactStep(),
-            if (_step == 3) _securityStep(),
+            if (_step == 1) _applicantTypeStep(),
+            if (_step == 2) _personalStep(),
+            if (_step == 3) _contactStep(),
+            if (_step == 4) _validIdStep(),
+            if (_step == 5) _securityStep(),
           ],
         ),
       ),
@@ -376,6 +444,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _applicantTypeStep() {
+    Widget option(String value, IconData icon, String title, String subtitle) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SoftChoiceCard(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            selected: _registeredAs == value,
+            onTap: () => setState(() {
+              _registeredAs = value;
+              _error = null;
+            }),
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('What will you mainly apply for?', style: SoftType.body.copyWith(color: SoftColors.ink)),
+        const SizedBox(height: 14),
+        option(registeredAsResidential, Icons.home_outlined, 'Residential / Private Individual',
+            'Your home or other private property'),
+        option(registeredAsBusiness, Icons.storefront_outlined, 'Business', 'A business or commercial establishment'),
+        option(registeredAsBoth, Icons.apps_rounded, 'Both', 'Your home or property, and a business'),
+        const SizedBox(height: 4),
+        Text(
+          'This only sets up your account. Every application asks again, so one account covers both.',
+          style: SoftType.cellLabel,
+        ),
+        const SizedBox(height: 22),
+        _errorLine(),
+        SoftPillButton(label: 'Continue', onPressed: _afterApplicantType),
+      ],
+    );
+  }
+
   Widget _personalStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -408,7 +511,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _dropdown('Nationality *', _nationality, nationalities, (v) => setState(() => _nationality = v ?? _nationality)),
         if (_nationality == 'Other') _field('Specify your nationality *', _otherNationality, capitalization: TextCapitalization.words),
         _errorLine(),
-        SoftPillButton(label: 'Continue', onPressed: _toStep2),
+        _navRow(onBack: () => _goTo(1), nextLabel: 'Continue', onNext: _afterPersonal),
       ],
     );
   }
@@ -509,7 +612,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
           formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
         ),
         _errorLine(),
-        _navRow(onBack: () => _goTo(1), nextLabel: 'Continue', onNext: _toStep3),
+        _navRow(onBack: () => _goTo(2), nextLabel: 'Continue', onNext: _afterContact),
+      ],
+    );
+  }
+
+  Widget _validIdStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'The Municipality checks your ID before you can submit applications. '
+          'You can prepare applications while you wait.',
+          style: SoftType.body,
+        ),
+        const SizedBox(height: 18),
+        ValidIdForm(draft: _validId, onChanged: () => setState(() => _error = null)),
+        const SizedBox(height: 20),
+        _errorLine(),
+        _navRow(onBack: () => _goTo(3), nextLabel: 'Continue', onNext: _afterValidId),
       ],
     );
   }
@@ -573,7 +694,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 12),
         _errorLine(),
-        _navRow(onBack: () => _goTo(2), nextLabel: 'Create Account', onNext: _submit, busy: _submitting),
+        _navRow(onBack: () => _goTo(4), nextLabel: 'Create Account', onNext: _submit, busy: _submitting),
       ],
     );
   }
@@ -589,15 +710,15 @@ class _StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const labels = ['Personal', 'Contact', 'Security'];
+    const labels = ['Applicant type', 'Personal', 'Contact', 'Valid ID', 'Security'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Step $step of 3 · ${labels[step - 1]}', style: SoftType.eyebrow),
+        Text('Step $step of ${labels.length} · ${labels[step - 1]}', style: SoftType.eyebrow),
         const SizedBox(height: 10),
         Row(
           children: [
-            for (var i = 0; i < 3; i++) ...[
+            for (var i = 0; i < labels.length; i++) ...[
               if (i > 0) const SizedBox(width: 6),
               Expanded(
                 child: AnimatedContainer(

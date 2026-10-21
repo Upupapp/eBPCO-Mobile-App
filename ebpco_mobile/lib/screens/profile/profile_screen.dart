@@ -11,6 +11,7 @@ import '../../services/businesses_service.dart';
 import '../../services/notifications_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/account_verification_card.dart';
 import '../../widgets/soft_action_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
@@ -18,6 +19,7 @@ import '../../widgets/soft_page.dart';
 import '../auth/login_screen.dart';
 import '../documents/my_documents_screen.dart';
 import '../home/root_shell.dart';
+import 'account_verification_screen.dart';
 import 'change_password_screen.dart';
 import 'edit_profile_screen.dart';
 import 'export_data_screen.dart';
@@ -192,6 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final verified = profile?.emailVerifiedAt != null;
     final barangay = profile?.barangay;
     final mobile = profile?.mobileNumber;
+    final accountVerification = session.verification;
 
     return SoftPageScaffold(
       title: 'Profile',
@@ -288,6 +291,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
+          // ebpco-api 067: the Municipality checks a valid ID before the
+          // account can submit applications.
+          if (accountVerification != null) ...[
+            const SizedBox(height: 24),
+            const SoftSectionHeader(title: 'Account verification'),
+            AccountVerificationCard(
+              verification: accountVerification,
+              onUpload: () => _push(const AccountVerificationScreen()),
+            ),
+          ],
           const SizedBox(height: 24),
           const SoftSectionHeader(title: 'Account'),
           SoftGroupedList(rows: [

@@ -5,7 +5,7 @@ import 'package:ebpco_mobile/domain/draft_resume.dart';
 /// Continue on a Draft (2026-10-01) reopens it where the citizen stopped,
 /// the same as the portal's `draft-resume.ts`.
 void main() {
-  test('opens on the first step when the business or permit reference is not settled', () {
+  test('opens on the first step when Applying as (business or property owner) or the permit reference is not settled', () {
     expect(resumeStep(applicantDone: false, detailsDone: true, documentsDone: true), 1);
   });
 

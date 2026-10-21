@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../../domain/account_verification.dart';
 import '../../domain/models.dart';
 import '../config/app_config.dart';
 import 'api_client.dart';
@@ -75,6 +76,9 @@ class CitizenApi {
     required String province,
     required String postalCode,
     required String password,
+    // 'residential', 'business' or 'both' (ebpco-api 067): only a starting
+    // point for the wizard's "Applying as", never a restriction.
+    String? registeredAs,
   }) =>
       _client.post('/auth/register', auth: false, body: {
         'firstName': firstName,
@@ -92,6 +96,7 @@ class CitizenApi {
         'province': province,
         'postalCode': postalCode,
         'password': password,
+        'registeredAs': ?registeredAs,
       });
 
   /// Signs in and stores the resulting tokens. Throws [ApiError] on a wrong
@@ -150,6 +155,16 @@ class CitizenApi {
   /// the server strips location and other metadata before keeping it.
   Future<void> uploadPhoto({required String fileName, required String contentBase64}) =>
       _client.put<Map<String, dynamic>>('/me/photo', body: {'fileName': fileName, 'contentBase64': contentBase64});
+
+  /// `PUT /me/verification` (ebpco-api 067) — the valid ID the Municipality
+  /// checks before the account can submit applications. Sending again
+  /// replaces a waiting ID or answers a returned one; 409 once verified.
+  /// The body is [verificationRequestBody]'s.
+  Future<AccountVerification?> submitVerification(Map<String, dynamic> body) async {
+    final response = await _client.put<Map<String, dynamic>>('/me/verification', body: body);
+    final verification = response['verification'];
+    return verification is Map<String, dynamic> ? AccountVerification.fromJson(verification) : null;
+  }
 
   /// `DELETE /me/photo` — a no-op, not an error, when there is none.
   Future<void> removePhoto() => _client.delete<void>('/me/photo');
