@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../domain/earlier_records.dart';
 import '../theme/soft_widget.dart';
 
-/// "Issued before eBPCO" (ebpco-api 069): on a permit from the
-/// Municipality's register and on a business from its registry. Gold, like
-/// the portal's badge, so it never reads as an application's status.
+/// "Issued before eBPCO" (ebpco-api 069) on a permit from the
+/// Municipality's register; "Registered before eBPCO" on a business from its
+/// registry ([business]). Gold, like the portal's badge, so it never reads as
+/// an application's status.
 class BeforeEbpcoBadge extends StatelessWidget {
-  const BeforeEbpcoBadge({super.key});
+  const BeforeEbpcoBadge({super.key, this.business = false});
+
+  final bool business;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +25,7 @@ class BeforeEbpcoBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              beforeEbpcoLabel,
+              business ? registeredBeforeEbpcoLabel : beforeEbpcoLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: SoftType.cellLabel.copyWith(color: SoftColors.goldInk, fontWeight: FontWeight.w600),

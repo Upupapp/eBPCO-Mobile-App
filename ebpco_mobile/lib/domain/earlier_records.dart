@@ -15,6 +15,9 @@ import 'permit_catalog.dart';
 /// The label on every earlier permit, and on a business from the registry.
 const String beforeEbpcoLabel = 'Issued before eBPCO';
 
+/// A business is registered, not issued: its badge says so.
+const String registeredBeforeEbpcoLabel = 'Registered before eBPCO';
+
 /// Said once over the earlier permits: there is nothing to track, download or print.
 const String beforeEbpcoNote =
     "Issued on paper before eBPCO. Keep your paper permit; this is the Municipality's register record.";

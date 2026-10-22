@@ -87,7 +87,7 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
             children: [
               SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
               // Registered in the Municipality's registry before eBPCO (ebpco-api 069).
-              if (business.importedBeforeEbpco) const BeforeEbpcoBadge(),
+              if (business.importedBeforeEbpco) const BeforeEbpcoBadge(business: true),
             ],
           ),
           const SizedBox(height: 18),

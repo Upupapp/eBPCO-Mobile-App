@@ -104,7 +104,7 @@ class _BusinessRow extends StatelessWidget {
                   children: [
                     SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
                     // In the Municipality's registry before eBPCO, matched to this account (ebpco-api 069).
-                    if (business.importedBeforeEbpco) const BeforeEbpcoBadge(),
+                    if (business.importedBeforeEbpco) const BeforeEbpcoBadge(business: true),
                   ],
                 ),
               ],
