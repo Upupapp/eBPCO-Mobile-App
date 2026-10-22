@@ -6,6 +6,7 @@ import '../../core/api/problem.dart';
 import '../../domain/models.dart';
 import '../../services/businesses_service.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/before_ebpco_badge.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
@@ -80,9 +81,14 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
+              // Registered in the Municipality's registry before eBPCO (ebpco-api 069).
+              if (business.importedBeforeEbpco) const BeforeEbpcoBadge(),
+            ],
           ),
           const SizedBox(height: 18),
           SoftCard(

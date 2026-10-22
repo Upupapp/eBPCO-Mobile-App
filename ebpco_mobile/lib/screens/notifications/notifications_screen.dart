@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models.dart';
+import '../../services/earlier_records_service.dart';
 import '../../services/notifications_service.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../applications/application_detail_screen.dart';
+import '../applications/my_applications_screen.dart';
+import '../home/root_shell.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -110,6 +113,13 @@ class _NotificationRow extends StatelessWidget {
         }
         if (entry.applicationId != null) {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationDetailScreen(applicationId: entry.applicationId!)));
+        } else if (entry.deepLink == '/applications') {
+          // "Your earlier records are on your account" / "About your earlier
+          // permit" (ebpco-api 069): the permits issued before eBPCO, and the
+          // answers to "Find my earlier permits", are under My Applications.
+          context.read<EarlierRecordsService>().refresh();
+          MyApplicationsScreen.showFilter('All');
+          RootShell.jumpTo(context, 1);
         }
       },
       child: Row(

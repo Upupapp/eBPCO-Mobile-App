@@ -3,12 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../../domain/models.dart';
 import '../../services/applications_service.dart';
+import '../../services/earlier_records_service.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
 import '../../widgets/status_badge.dart';
 import 'application_detail_screen.dart';
+import 'earlier_permits_section.dart';
 
 /// One chip for every status a citizen sees on a row, the same tabs as the
 /// citizen portal (QA TC-35, 2026-10-03: Completed, Cancelled and Revision
@@ -65,7 +67,16 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
     super.initState();
     MyApplicationsScreen._requestedFilter.addListener(_onFilterRequested);
     _onFilterRequested();
-    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<ApplicationsService>().refresh());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  /// The applications, and apart from them the permits issued before eBPCO
+  /// (ebpco-api 069), which are never among the applications or their counts.
+  Future<void> _refresh() async {
+    await Future.wait([
+      context.read<ApplicationsService>().refresh(),
+      context.read<EarlierRecordsService>().refresh(),
+    ]);
   }
 
   @override
@@ -117,7 +128,7 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
           const SizedBox(height: 12),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => context.read<ApplicationsService>().refresh(),
+              onRefresh: _refresh,
               child: apps.loading && apps.applications.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : filtered.isEmpty
@@ -131,15 +142,20 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
                                       ? 'No applications yet. Start one from Services.'
                                       : 'No $_filter applications.',
                             ),
+                            const EarlierPermitsSection(),
                           ],
                         )
                       : ListView.builder(
                           padding: EdgeInsets.fromLTRB(20, 4, 20, SoftPageScaffold.navClearance(context)),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, i) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _Row(application: filtered[i]),
-                          ),
+                          // The last item is "Issued before eBPCO": register
+                          // records below the applications, not counted with them.
+                          itemCount: filtered.length + 1,
+                          itemBuilder: (context, i) => i == filtered.length
+                              ? const EarlierPermitsSection()
+                              : Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _Row(application: filtered[i]),
+                                ),
                         ),
             ),
           ),

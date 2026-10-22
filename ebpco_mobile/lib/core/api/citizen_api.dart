@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../../domain/account_verification.dart';
+import '../../domain/earlier_records.dart';
 import '../../domain/models.dart';
 import '../../domain/who_may_apply.dart';
 import '../config/app_config.dart';
@@ -269,6 +270,41 @@ class CitizenApi {
       'businessId': ?businessId,
     }).query;
     return RenewalCheck.fromJson(await _client.get<Map<String, dynamic>>('/applications/renewal-check?$query'));
+  }
+
+  // ── Records before eBPCO (ebpco-api 069) ─────────────────────────────
+
+  /// `GET /me/earlier-permits` — the permits the Municipality issued this
+  /// citizen on paper before eBPCO, once an officer matched them to the
+  /// account. Never among [listApplications], which are filings.
+  Future<List<EarlierPermit>> earlierPermits() async {
+    final body = await _client.get<Map<String, dynamic>>('/me/earlier-permits');
+    return ((body['data'] as List<dynamic>?) ?? const [])
+        .map((e) => EarlierPermit.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// `GET /me/record-claims` — this citizen's "this earlier permit is mine"
+  /// requests, newest first.
+  Future<List<RecordClaim>> recordClaims() async {
+    final body = await _client.get<Map<String, dynamic>>('/me/record-claims');
+    return ((body['data'] as List<dynamic>?) ?? const [])
+        .map((e) => RecordClaim.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// `POST /me/record-claims` — 201 `{ claim }`, the same answer whether or
+  /// not the number is in the register. Needs [dateIssued] (YYYY-MM-DD) or
+  /// [orNumber] (400 otherwise); 409 when already claimed and waiting, 429 at
+  /// ten waiting. No Idempotency-Key, like the portal: a resend of a waiting
+  /// claim is refused 409, never doubled.
+  Future<RecordClaim> claimEarlierPermit({required String permitNumber, String? dateIssued, String? orNumber}) async {
+    final body = await _client.post<Map<String, dynamic>>('/me/record-claims', body: {
+      'permitNumber': permitNumber,
+      'dateIssued': dateIssued,
+      'orNumber': orNumber,
+    });
+    return RecordClaim.fromJson(body['claim'] as Map<String, dynamic>);
   }
 
   /// Files a new application, or a Draft when [saveAsDraft] is true.

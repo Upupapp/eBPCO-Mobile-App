@@ -19,6 +19,7 @@ import '../../domain/upload_file.dart';
 import '../../domain/who_may_apply.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
+import '../../services/earlier_records_service.dart';
 import '../../services/session_service.dart';
 import '../../services/upload_limits.dart';
 import '../../theme/app_typography.dart';
@@ -54,8 +55,23 @@ class ApplicationWizardScreen extends StatefulWidget {
   /// Set when resuming a Draft from Application Detail's "Continue".
   final String? draftId;
 
-  const ApplicationWizardScreen({super.key, this.permitType, this.draftId})
-    : assert(
+  /// A fresh start as a 'Renewal' or 'Amendment' of [permitNumber], for
+  /// [businessId] when it is one of the citizen's businesses: "Renew" on a
+  /// permit issued before eBPCO (ebpco-api 069). Continue still has the
+  /// server check the number, exactly like a typed one. A resumed draft
+  /// keeps its own.
+  final String? applicationAction;
+  final String? permitNumber;
+  final String? businessId;
+
+  const ApplicationWizardScreen({
+    super.key,
+    this.permitType,
+    this.draftId,
+    this.applicationAction,
+    this.permitNumber,
+    this.businessId,
+  }) : assert(
         permitType != null || draftId != null,
         'Provide either permitType (new) or draftId (resume).',
       );
@@ -157,8 +173,19 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     _permitType = widget.permitType ?? '';
     final session = context.read<SessionService>();
     _applyingAs = defaultApplyingAs(session.profile?.registeredAs);
+    if (!_isResuming && (widget.applicationAction == 'Renewal' || widget.applicationAction == 'Amendment')) {
+      _applicationAction = widget.applicationAction!;
+      _permitNumber.text = widget.permitNumber?.trim() ?? '';
+      if (widget.businessId case final businessId?) {
+        _businessId = businessId;
+        _applyingAs = applyingAsBusiness;
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BusinessesService>().refresh();
+      // The citizen's permits issued before eBPCO, offered as quick picks
+      // for a Renewal or Amendment's permit number.
+      context.read<EarlierRecordsService>().refresh();
       // Whether the account may submit yet: it may have been verified since sign-in.
       session.refreshProfile().catchError((_) {});
     });
@@ -342,7 +369,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     }
     final checked = _verifiedPermit?.permitNumber;
     return {
-      'renewsPermitNumber': checked != null && checked == _typedPermitNumber ? checked : null,
+      // The server's own spelling of the number, which for a permit from the
+      // register (ebpco-api 069) need not be upper case.
+      'renewsPermitNumber': checked != null && checked.toUpperCase() == _typedPermitNumber ? checked : null,
       'priorPermitClaim': null,
     };
   }
@@ -906,6 +935,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               errorMaxLines: 5,
             ),
           ),
+          if (!_paperPermit) _earlierPicks(),
           const SizedBox(height: 6),
           if (_verifiedPermit != null && _permitNumberError == null && !_paperPermit)
             _verifiedPermitLine(_verifiedPermit!)
@@ -934,7 +964,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               style: SoftType.body.copyWith(color: SoftColors.ink),
             ),
             subtitle: Text(
-              'It will not be found in the system. You will need to upload a copy of it.',
+              'Only when it is not on your account. You will need to upload a copy of it.',
               style: SoftType.cellLabel,
             ),
           ),
@@ -1083,6 +1113,49 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         _error = null;
         _invalidatePermitCheck();
       }),
+    );
+  }
+
+  /// The citizen's permits issued before eBPCO of this type (ebpco-api 069),
+  /// matched to the account by an officer: a tap fills the number exactly as
+  /// the register writes it. Continue checks it like a typed one.
+  Widget _earlierPicks() {
+    final earlier = context.watch<EarlierRecordsService>().permitsOfType(_permitType);
+    if (earlier.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Your permits issued before eBPCO:', style: SoftType.cellLabel),
+          const SizedBox(height: 6),
+          // Follows the field as it is typed in, so the pick that matches shows chosen.
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _permitNumber,
+            builder: (context, typed, _) => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final permit in earlier)
+                  SizedBox(
+                    height: 36,
+                    // As wide as its number, not the whole row.
+                    child: IntrinsicWidth(
+                      child: SoftFilterChip(
+                        label: permit.permitNumber,
+                        selected: permit.permitNumber.toUpperCase() == typed.text.trim().toUpperCase(),
+                        onTap: () => setState(() {
+                          _permitNumber.text = permit.permitNumber;
+                          _invalidatePermitCheck();
+                        }),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

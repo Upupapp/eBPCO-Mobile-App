@@ -704,6 +704,12 @@ class Business {
   final String dateRegistered;
   final String status;
 
+  /// In the Municipality's business registry before eBPCO, imported from it
+  /// and matched to this account by an officer (ebpco-api 069). Shown as
+  /// "Issued before eBPCO"; the citizen files for it like any other
+  /// business. False from an older server.
+  final bool importedBeforeEbpco;
+
   const Business({
     required this.id,
     required this.name,
@@ -715,6 +721,7 @@ class Business {
     required this.registrationNumber,
     required this.dateRegistered,
     required this.status,
+    this.importedBeforeEbpco = false,
   });
 
   bool get isActive => status == 'Active';
@@ -730,6 +737,7 @@ class Business {
         registrationNumber: json['registrationNumber'] as String,
         dateRegistered: json['dateRegistered'] as String,
         status: json['status'] as String,
+        importedBeforeEbpco: json['importedBeforeEbpco'] == true,
       );
 }
 

@@ -8,6 +8,7 @@ import '../../core/api/problem.dart';
 import '../../domain/profile_photo.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
+import '../../services/earlier_records_service.dart';
 import '../../services/notifications_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/soft_widget.dart';
@@ -129,6 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     context.read<ApplicationsService>().clear();
     context.read<NotificationsService>().clear();
     context.read<BusinessesService>().clear();
+    context.read<EarlierRecordsService>().clear();
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
   }
 
@@ -176,6 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<ApplicationsService>().clear();
       context.read<NotificationsService>().clear();
       context.read<BusinessesService>().clear();
+      context.read<EarlierRecordsService>().clear();
       Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
       ScaffoldMessenger.of(context).showSnackBar(messageBar('Your account has been erased, as far as the law allows.'));
     } on ApiError catch (e) {

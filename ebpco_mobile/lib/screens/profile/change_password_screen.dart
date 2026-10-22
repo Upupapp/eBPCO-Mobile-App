@@ -6,6 +6,7 @@ import '../../core/api/problem.dart';
 import '../../domain/password_policy.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
+import '../../services/earlier_records_service.dart';
 import '../../services/notifications_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_typography.dart';
@@ -71,6 +72,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       context.read<ApplicationsService>().clear();
       context.read<NotificationsService>().clear();
       context.read<BusinessesService>().clear();
+      context.read<EarlierRecordsService>().clear();
       Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
       ScaffoldMessenger.of(context).showSnackBar(messageBar('Password changed. Sign in again with your new password.'));
     } on ApiError catch (e) {

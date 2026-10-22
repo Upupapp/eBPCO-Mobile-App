@@ -7,6 +7,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'services/applications_service.dart';
 import 'services/businesses_service.dart';
+import 'services/earlier_records_service.dart';
 import 'services/notifications_service.dart';
 import 'services/push_service.dart';
 import 'services/session_service.dart';
@@ -37,6 +38,8 @@ class EbpcoMobileApp extends StatelessWidget {
       ..onForegroundMessage = () {
         _notifications.refresh();
         _applications.refresh();
+        // "Your earlier records are on your account" (ebpco-api 069).
+        _earlierRecords.refresh();
         // "Your account is verified" / "Your ID was not accepted" change what
         // Home, Profile and the wizard show.
         _session.refreshProfile().catchError((_) {});
@@ -73,6 +76,7 @@ class EbpcoMobileApp extends StatelessWidget {
   final _applications = ApplicationsService();
   final _notifications = NotificationsService();
   final _businesses = BusinessesService();
+  final _earlierRecords = EarlierRecordsService();
 
   /// Same outcome as the portal's interceptor on a real 401: drop the
   /// session, clear every cached list, and go to Sign in — once, however
@@ -83,6 +87,7 @@ class EbpcoMobileApp extends StatelessWidget {
     _applications.clear();
     _notifications.clear();
     _businesses.clear();
+    _earlierRecords.clear();
     _navigatorKey.currentState?.pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
     _messengerKey.currentState?.showSnackBar(messageBar('Your session has ended. Please sign in again.'));
   }
@@ -95,6 +100,7 @@ class EbpcoMobileApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: _applications),
         ChangeNotifierProvider.value(value: _notifications),
         ChangeNotifierProvider.value(value: _businesses),
+        ChangeNotifierProvider.value(value: _earlierRecords),
       ],
       child: MaterialApp(
         title: 'eBPCO',

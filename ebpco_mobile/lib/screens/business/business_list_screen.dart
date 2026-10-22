@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../domain/models.dart';
 import '../../services/businesses_service.dart';
 import '../../theme/soft_widget.dart';
+import '../../widgets/before_ebpco_badge.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
@@ -97,7 +98,15 @@ class _BusinessRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text('${business.category} · ${business.barangay}', style: SoftType.tileSub),
                 const SizedBox(height: 8),
-                SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    SoftStatusPill(label: business.status, tone: business.isActive ? SoftStatusTone.verified : SoftStatusTone.neutral),
+                    // In the Municipality's registry before eBPCO, matched to this account (ebpco-api 069).
+                    if (business.importedBeforeEbpco) const BeforeEbpcoBadge(),
+                  ],
+                ),
               ],
             ),
           ),
