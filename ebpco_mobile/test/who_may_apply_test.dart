@@ -101,4 +101,11 @@ void main() {
       expect(onlyApplicantKind(bothApplicantKinds), isNull);
     });
   });
+
+  test('the usual-use note gives way when a type is restricted to one kind', () {
+    expect(usualUseNote('Sign Permit', [applyingAsBusiness]), isNull);
+    expect(usualUseNote('Fencing Permit', [applyingAsResidential]), isNull);
+    expect(usualUseNote('Sign Permit', bothApplicantKinds), contains('business sign'));
+    expect(usualUseNote('Sign Permit'), contains('business sign'));
+  });
 }

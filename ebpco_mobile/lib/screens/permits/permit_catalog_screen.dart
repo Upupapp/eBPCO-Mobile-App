@@ -60,7 +60,7 @@ class _PermitCatalogScreenState extends State<PermitCatalogScreen> {
                           label: applicantKindsChip(applicantKindsFor(applicantKinds, type)),
                           tone: SoftStatusTone.neutral,
                         ),
-                  subtitle: usualUseNote(type),
+                  subtitle: usualUseNote(type, applicantKinds == null ? null : applicantKindsFor(applicantKinds, type)),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationWizardScreen(permitType: type))),
                 ),
             ]),

@@ -849,7 +849,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           onTap: businessClosed == null ? () => _chooseApplyingAs(applyingAsBusiness) : null,
         ),
         // Who usually applies: guidance, never a rule.
-        if (usualUseNote(_permitType) case final note?) ...[
+        if (usualUseNote(_permitType, _applicantKinds) case final note?) ...[
           const SizedBox(height: 10),
           _note(note),
         ],

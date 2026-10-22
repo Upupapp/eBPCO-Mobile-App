@@ -58,13 +58,17 @@ String applicantKindsChip(List<String> kinds) {
 
 /// Who usually applies, for the few types where that is worth saying. Never
 /// a rule: a doctor's home clinic sign is filed by the doctor.
-String? usualUseNote(String permitType) => switch (permitType) {
-      'Sign Permit' => 'Usually a business sign; a home-based practice can apply as Residential.',
-      'Fencing Permit' => 'Usually for homes.',
-      'Interior Design Permit' => 'Usually shop and office fit-outs.',
-      'Certificate of Occupancy' => 'After the building work is done, before the building is used.',
-      _ => null,
-    };
+/// A type restricted to one kind ([kinds]) gets none: its chip says who may
+/// apply, and a note about who USUALLY applies would only contradict it.
+String? usualUseNote(String permitType, [List<String>? kinds]) => kinds != null && kinds.length < 2
+    ? null
+    : switch (permitType) {
+        'Sign Permit' => 'Usually a business sign; a home-based practice can apply as Residential.',
+        'Fencing Permit' => 'Usually for homes.',
+        'Interior Design Permit' => 'Usually shop and office fit-outs.',
+        'Certificate of Occupancy' => 'After the building work is done, before the building is used.',
+        _ => null,
+      };
 
 /// Why "Applying as" [kind] is not open for [permitType], or null when it is.
 String? applicantKindClosedMessage({
