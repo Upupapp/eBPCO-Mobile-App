@@ -17,6 +17,22 @@ void main() {
     expect(offeredPermitTypeCount, 15);
   });
 
+  test('the Certificate of Occupancy sits beside the Building Permit, not alone at the bottom', () {
+    expect(permitTypeGroups.first.label, 'Building & Occupancy');
+    expect(permitTypeGroups.first.types, [
+      'Building Permit',
+      'Certificate of Occupancy',
+      'Zoning / Locational Clearance',
+      'Demolition Permit',
+    ]);
+    expect(permitTypeGroups.map((group) => group.label), ['Building & Occupancy', 'Ancillary Permits', 'Other Permits']);
+  });
+
+  test('every type is offered once', () {
+    final offered = permitTypeGroups.expand((group) => group.types).toList();
+    expect(offered.toSet().length, offered.length);
+  });
+
   test('every type the catalog offers is a known permit type', () {
     for (final type in permitTypeGroups.expand((group) => group.types)) {
       expect(allPermitTypes, contains(type));

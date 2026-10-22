@@ -16,6 +16,7 @@ import '../../domain/models.dart';
 import '../../domain/draft_resume.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
+import '../../domain/who_may_apply.dart';
 import '../../services/applications_service.dart';
 import '../../services/businesses_service.dart';
 import '../../services/session_service.dart';
@@ -44,7 +45,8 @@ import '../../widgets/message_bar.dart';
 /// Private Individual needs no business, only who owns the property;
 /// Business picks one of the citizen's businesses. Submitting needs a
 /// verified account; until then the draft is saved and the citizen is told
-/// why it cannot be submitted yet.
+/// why it cannot be submitted yet. A permit type the Municipality takes from
+/// one kind of applicant only (ebpco-api 068) offers only that kind.
 class ApplicationWizardScreen extends StatefulWidget {
   /// Set when starting fresh from the catalog.
   final String? permitType;
@@ -89,6 +91,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   /// 'residential' or 'business'; null until chosen. Starts on what the
   /// citizen chose at sign-up, if that was one of the two.
   String? _applyingAs;
+
+  /// Who may apply for every permit type (`GET /permit-types`); never fails,
+  /// an older server reads as both.
+  late final Future<Map<String, List<String>>> _kindsByType;
+
+  /// Who may apply for this permit type: both until the server says otherwise.
+  List<String> _applicantKinds = bothApplicantKinds;
 
   /// "Do you own the property?" on a residential application; null until answered.
   bool? _ownsProperty;
@@ -154,11 +163,38 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       session.refreshProfile().catchError((_) {});
     });
     _loadLibrary();
+    _kindsByType = _api.permitTypeApplicantKinds();
     if (_isResuming) {
       _draftId = widget.draftId;
       _loadDraft();
+    } else {
+      _loadApplicantKinds();
     }
   }
+
+  Future<void> _loadApplicantKinds() async {
+    final kinds = applicantKindsFor(await _kindsByType, _permitType);
+    if (!mounted) return;
+    setState(() {
+      _applicantKinds = kinds;
+      if (_step == 1) _honourApplicantKinds();
+    });
+  }
+
+  /// A type open to one kind only starts on that kind, whatever was chosen at
+  /// sign-up or saved on the draft. True when it changed the choice.
+  bool _honourApplicantKinds() {
+    final only = onlyApplicantKind(_applicantKinds);
+    if (only == null || _applyingAs == only) return false;
+    _applyingAs = only;
+    _invalidatePermitCheck();
+    return true;
+  }
+
+  /// Why the chosen "Applying as" is not open for this permit type, or null.
+  String? get _applicantKindClosed => _applyingAs == null
+      ? null
+      : applicantKindClosedMessage(permitType: _permitType, kind: _applyingAs!, kinds: _applicantKinds);
 
   @override
   void dispose() {
@@ -204,13 +240,17 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _scopeOfWork.text = app.form['scopeOfWork'] as String? ?? '';
       _professionalName.text = app.form['professionalName'] as String? ?? '';
       _prcNumber.text = app.form['prcNumber'] as String? ?? '';
+      _applicantKinds = applicantKindsFor(await _kindsByType, _permitType);
+      // A draft saved as a kind the type no longer takes reopens on step 1.
+      final kindChanged = _honourApplicantKinds();
       await _loadRequirements();
       if (!mounted) return;
       // Reopen where the citizen stopped, by the same tests Continue applies
       // on the way forward. A business not loaded yet does not hold them back.
       final business = context.read<BusinessesService>().businesses.where((b) => b.id == _businessId);
       _goTo(resumeStep(
-        applicantDone: _applyingAsProblem == null &&
+        applicantDone: !kindChanged &&
+            _applyingAsProblem == null &&
             (_isResidential || business.isEmpty || business.first.isActive) &&
             (!_needsPermitReference || app.renewsPermitNumber != null || app.priorPermitClaim != null),
         detailsDone: _projectAddress.text.trim().isNotEmpty && _scopeOfWork.text.trim().isNotEmpty,
@@ -232,6 +272,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           _attachedToServer.addAll(r.documentIds);
         }
       }
+      // A file picked for a row this checklist no longer has (Applying as
+      // changed, so no signatory's authority) is not linked to the draft.
+      _attachedDocIds.removeWhere((code, id) => !_attachedToServer.contains(id) && reqs.every((r) => r.code != code));
       try {
         for (final d in await _api.listApplicationDocuments(_draftId!)) {
           if (d.requirementCode != null && _attachedDocIds[d.requirementCode] == d.id) {
@@ -244,7 +287,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       if (!mounted) return;
       setState(() => _requirements = reqs);
     } else {
-      final reqs = await _api.requirementsForPermitType(_permitType);
+      // With Applying as: a business is also asked for the signatory's authority.
+      final reqs = await _api.requirementsForPermitType(_permitType, applyingAs: _applyingAs);
       if (!mounted) return;
       setState(() => _requirements = reqs);
     }
@@ -310,7 +354,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Future<void> _toStep2() async {
-    if (_applyingAsProblem case final problem?) {
+    if (_applicantKindClosed ?? _applyingAsProblem case final problem?) {
       setState(() => _error = problem);
       return;
     }
@@ -761,6 +805,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   Widget _step1() {
     final businesses = context.watch<BusinessesService>();
     final active = businesses.active;
+    String? closed(String kind) =>
+        applicantKindClosedMessage(permitType: _permitType, kind: kind, kinds: _applicantKinds);
+    final residentialClosed = closed(applyingAsResidential);
+    final businessClosed = closed(applyingAsBusiness);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -788,21 +836,22 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         SoftChoiceCard(
           icon: Icons.home_outlined,
           title: applyingAsLabel(applyingAsResidential),
-          subtitle: 'Your home or other private property',
+          subtitle: residentialClosed ?? 'Your home or other private property',
           selected: _isResidential,
-          onTap: () => _chooseApplyingAs(applyingAsResidential),
+          onTap: residentialClosed == null ? () => _chooseApplyingAs(applyingAsResidential) : null,
         ),
         const SizedBox(height: 10),
         SoftChoiceCard(
           icon: Icons.storefront_outlined,
           title: applyingAsLabel(applyingAsBusiness),
-          subtitle: 'A business or commercial establishment',
+          subtitle: businessClosed ?? 'A business or commercial establishment',
           selected: _applyingAs == applyingAsBusiness,
-          onTap: () => _chooseApplyingAs(applyingAsBusiness),
+          onTap: businessClosed == null ? () => _chooseApplyingAs(applyingAsBusiness) : null,
         ),
-        if (applyingAsHint(permitType: _permitType, applyingAs: _applyingAs) case final hint?) ...[
+        // Who usually applies: guidance, never a rule.
+        if (usualUseNote(_permitType) case final note?) ...[
           const SizedBox(height: 10),
-          _note(hint),
+          _note(note),
         ],
         if (_isResidential) ...[
           const SizedBox(height: 18),

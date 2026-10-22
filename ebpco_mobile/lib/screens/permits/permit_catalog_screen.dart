@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/api/citizen_api.dart';
 import '../../domain/permit_catalog.dart';
+import '../../domain/who_may_apply.dart';
 import '../../widgets/soft_card.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_chrome.dart';
@@ -9,12 +11,31 @@ import '../../widgets/soft_page.dart';
 import 'application_wizard_screen.dart';
 
 /// Ported grouping from `permit.model.ts`'s `PERMIT_TYPE_GROUPS` — see that
-/// file's own comment on why this is the mirror, not a re-derivation.
-class PermitCatalogScreen extends StatelessWidget {
+/// file's own comment on why this is the mirror, not a re-derivation. Each
+/// type says who may apply (ebpco-api 068) and, for a few, who usually does.
+class PermitCatalogScreen extends StatefulWidget {
   const PermitCatalogScreen({super.key});
 
   @override
+  State<PermitCatalogScreen> createState() => _PermitCatalogScreenState();
+}
+
+class _PermitCatalogScreenState extends State<PermitCatalogScreen> {
+  /// Who may apply for each type; null until loaded. Never fails: an older
+  /// server or no connection reads as every type open to both.
+  Map<String, List<String>>? _applicantKinds;
+
+  @override
+  void initState() {
+    super.initState();
+    CitizenApi.instance.permitTypeApplicantKinds().then((kinds) {
+      if (mounted) setState(() => _applicantKinds = kinds);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final applicantKinds = _applicantKinds;
     return SoftPageScaffold(
       title: 'Permit Services',
       body: ListView(
@@ -33,6 +54,13 @@ class PermitCatalogScreen extends StatelessWidget {
                 SoftListRow(
                   icon: Icons.description_outlined,
                   title: type,
+                  tag: applicantKinds == null
+                      ? null
+                      : SoftStatusPill(
+                          label: applicantKindsChip(applicantKindsFor(applicantKinds, type)),
+                          tone: SoftStatusTone.neutral,
+                        ),
+                  subtitle: usualUseNote(type),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationWizardScreen(permitType: type))),
                 ),
             ]),

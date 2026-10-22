@@ -126,13 +126,6 @@ Map<String, dynamic> applicationForm({
   };
 }
 
-/// The guidance a Sign Permit gets when filed as Residential: not a rule,
-/// every permit type allows both.
-String? applyingAsHint({required String permitType, required String? applyingAs}) =>
-    permitType == 'Sign Permit' && applyingAs == applyingAsResidential
-        ? 'Sign permits are usually for a business sign. Choose Business if this sign is for your business.'
-        : null;
-
 /// What "Applying as" reads on a review or summary.
 String applyingAsLabel(String? applyingAs) => switch (applyingAs) {
       applyingAsResidential => 'Residential / Private Individual',

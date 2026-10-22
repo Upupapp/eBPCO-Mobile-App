@@ -118,7 +118,10 @@ class SoftListRow extends StatelessWidget {
   final Color? iconBackground;
   final Color? iconColor;
 
-  const SoftListRow({super.key, required this.icon, required this.title, this.subtitle, required this.onTap, this.iconBackground, this.iconColor});
+  /// A small label under the title, such as a [SoftStatusPill].
+  final Widget? tag;
+
+  const SoftListRow({super.key, required this.icon, required this.title, this.subtitle, required this.onTap, this.iconBackground, this.iconColor, this.tag});
 
   @override
   Widget build(BuildContext context) {
@@ -140,8 +143,12 @@ class SoftListRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: SoftType.tileTitle.copyWith(fontSize: 16)),
+                  if (tag != null) ...[
+                    const SizedBox(height: 6),
+                    tag!,
+                  ],
                   if (subtitle != null) ...[
-                    const SizedBox(height: 2),
+                    SizedBox(height: tag == null ? 2 : 6),
                     Text(subtitle!, style: SoftType.tileSub),
                   ],
                 ],

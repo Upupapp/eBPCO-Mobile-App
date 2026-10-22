@@ -10,7 +10,14 @@ class PermitTypeGroup {
 }
 
 const List<PermitTypeGroup> permitTypeGroups = [
-  PermitTypeGroup('Building Permit', ['Building Permit', 'Demolition Permit', 'Zoning / Locational Clearance']),
+  // The Certificate of Occupancy sits beside the Building Permit it follows
+  // (2026-10-23): alone in a "Certificates" group at the bottom it was missed.
+  PermitTypeGroup('Building & Occupancy', [
+    'Building Permit',
+    'Certificate of Occupancy',
+    'Zoning / Locational Clearance',
+    'Demolition Permit',
+  ]),
   PermitTypeGroup('Ancillary Permits', [
     'Architectural Permit',
     'Civil / Structural Permit',
@@ -23,7 +30,6 @@ const List<PermitTypeGroup> permitTypeGroups = [
   ]),
   PermitTypeGroup('Other Permits', ['Fencing Permit', 'Sign Permit', 'Excavation Permit']),
   // Not the FSEC or the FSIC: see [retiredPermitTypes].
-  PermitTypeGroup('Certificates', ['Certificate of Occupancy']),
 ];
 
 /// Still recognised on old records, no longer filed through eBPCO (ebpco-api

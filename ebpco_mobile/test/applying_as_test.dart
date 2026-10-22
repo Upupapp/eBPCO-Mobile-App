@@ -152,12 +152,6 @@ void main() {
     });
   });
 
-  test('a residential Sign Permit gets a hint, never a rule', () {
-    expect(applyingAsHint(permitType: 'Sign Permit', applyingAs: applyingAsResidential), contains('Choose Business'));
-    expect(applyingAsHint(permitType: 'Sign Permit', applyingAs: applyingAsBusiness), isNull);
-    expect(applyingAsHint(permitType: 'Building Permit', applyingAs: applyingAsResidential), isNull);
-  });
-
   test('the review reads in plain words', () {
     expect(applyingAsLabel(applyingAsResidential), 'Residential / Private Individual');
     expect(applyingAsLabel(applyingAsBusiness), 'Business');

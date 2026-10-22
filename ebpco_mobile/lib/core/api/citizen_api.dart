@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../../domain/account_verification.dart';
 import '../../domain/models.dart';
+import '../../domain/who_may_apply.dart';
 import '../config/app_config.dart';
 import 'api_client.dart';
 import 'problem.dart';
@@ -212,10 +213,25 @@ class CitizenApi {
     return body.map((e) => DocumentEntry.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// `GET /permit-types` (ebpco-api 068) — who may apply for each permit
+  /// type, as permit type -> 'residential' and/or 'business'. Never throws:
+  /// when it fails (an older server, no connection) every type is open to
+  /// both, as the portal reads it, and nothing is hidden.
+  Future<Map<String, List<String>>> permitTypeApplicantKinds() async {
+    try {
+      return applicantKindsByType(await _client.get<Map<String, dynamic>>('/permit-types'));
+    } catch (_) {
+      return everyPermitTypeOpenToBoth;
+    }
+  }
+
   /// The live, pre-filing checklist for a permit type — what the wizard
-  /// shows before any application row exists yet.
-  Future<List<RequirementDoc>> requirementsForPermitType(String permitType) async {
-    final body = await _client.get<Map<String, dynamic>>('/requirements/${Uri.encodeComponent(permitType)}');
+  /// shows before any application row exists yet. [applyingAs] adds the rows
+  /// for that kind of applicant (ebpco-api 068: a business is also asked for
+  /// the signatory's authority); without it, only the rows for everyone.
+  Future<List<RequirementDoc>> requirementsForPermitType(String permitType, {String? applyingAs}) async {
+    final query = applyingAs == null ? '' : '?${Uri(queryParameters: {'applyingAs': applyingAs}).query}';
+    final body = await _client.get<Map<String, dynamic>>('/requirements/${Uri.encodeComponent(permitType)}$query');
     return (body['documents'] as List<dynamic>)
         .map((e) => RequirementDoc.fromCatalogJson(e as Map<String, dynamic>))
         .toList();
