@@ -42,7 +42,8 @@ void main() {
       expect(_app().applyingAs, applyingAsResidential);
     });
 
-    test('a residential application names the owner when the applicant is not the owner', () {
+    test('an older residential application still shows the owner it named', () {
+      // Filed before the 2026-10-28 ruling, when the app still asked "Do you own the property?".
       final forOwner = _app(applyingAs: 'residential', form: {
         'applyingAs': 'residential',
         'propertyOwner': {'isApplicant': false, 'name': ' Maria Santos ', 'relationship': 'Mother'},
@@ -53,6 +54,8 @@ void main() {
         'propertyOwner': {'isApplicant': true},
       });
       expect(own.propertyOwnerName, isNull);
+      expect(_app(applyingAs: 'residential', form: {'applyingAs': 'residential'}).propertyOwnerName, isNull);
+      expect(propertyOwnerNameOf({'propertyOwner': {'isApplicant': false, 'name': '  '}}), isNull);
     });
   });
 
@@ -69,22 +72,11 @@ void main() {
     test('neither asks again', () {
       expect(savedApplyingAs(const {}, null), isNull);
     });
-
-    test('the property owner comes back as saved', () {
-      final owner = PropertyOwner.fromForm({
-        'propertyOwner': {'isApplicant': false, 'name': 'Maria Santos', 'relationship': 'Mother'},
-      })!;
-      expect(owner.isApplicant, isFalse);
-      expect(owner.name, 'Maria Santos');
-      expect(owner.relationship, 'Mother');
-      expect(PropertyOwner.fromForm({'propertyOwner': {'isApplicant': true}})!.isApplicant, isTrue);
-      expect(PropertyOwner.fromForm(const {}), isNull);
-    });
   });
 
   group('Continue on step 1', () {
-    String? problem({String? applyingAs, String? businessId, bool? ownsProperty, String ownerName = ''}) =>
-        applyingAsProblem(applyingAs: applyingAs, businessId: businessId, ownsProperty: ownsProperty, ownerName: ownerName);
+    String? problem({String? applyingAs, String? businessId}) =>
+        applyingAsProblem(applyingAs: applyingAs, businessId: businessId);
 
     test('needs a choice', () {
       expect(problem(), contains('Residential / Private Individual'));
@@ -95,41 +87,41 @@ void main() {
       expect(problem(applyingAs: 'business', businessId: 'b-1'), isNull);
     });
 
-    test('Residential needs no business, only who owns the property', () {
-      expect(problem(applyingAs: 'residential'), 'Please answer whether you own the property.');
-      expect(problem(applyingAs: 'residential', ownsProperty: true), isNull);
-      expect(problem(applyingAs: 'residential', ownsProperty: false), "Enter the property owner's full name.");
-      expect(problem(applyingAs: 'residential', ownsProperty: false, ownerName: 'Maria Santos'), isNull);
+    test('Residential needs nothing more: the citizen applies for their own property', () {
+      expect(problem(applyingAs: 'residential'), isNull);
     });
   });
 
   group('the form saved with the application', () {
-    test('Residential carries the owner, with the details as before', () {
+    test('Residential carries the details as before, and no property owner', () {
       final form = applicationForm(
         applyingAs: applyingAsResidential,
-        propertyOwner: const PropertyOwner(isApplicant: false, name: ' Maria Santos ', relationship: ''),
         scopeOfWork: 'Two-storey house',
         professionalName: '',
         prcNumber: ' 0012345 ',
       );
       expect(form, {
         'applyingAs': 'residential',
-        'propertyOwner': {'isApplicant': false, 'name': 'Maria Santos'},
         'scopeOfWork': 'Two-storey house',
         'professionalName': null,
         'prcNumber': '0012345',
       });
     });
 
-    test('the applicant as owner is just that', () {
+    test('an older draft that named another owner is saved without it, and other keys are kept', () {
+      // The server now refuses a residential filing for someone else's property.
       final form = applicationForm(
+        previous: {
+          'lotArea': '120',
+          'propertyOwner': {'isApplicant': false, 'name': 'Maria Santos', 'relationship': 'Mother'},
+        },
         applyingAs: applyingAsResidential,
-        propertyOwner: const PropertyOwner(isApplicant: true, name: 'ignored'),
         scopeOfWork: '',
         professionalName: '',
         prcNumber: '',
       );
-      expect(form['propertyOwner'], {'isApplicant': true});
+      expect(form.containsKey('propertyOwner'), isFalse);
+      expect(form['lotArea'], '120');
       expect(form['scopeOfWork'], isNull);
     });
 
@@ -140,13 +132,12 @@ void main() {
           'propertyOwner': {'isApplicant': true},
         },
         applyingAs: applyingAsBusiness,
-        propertyOwner: const PropertyOwner(isApplicant: true),
         scopeOfWork: 'Store front',
         professionalName: 'Engr. Reyes',
         prcNumber: '',
       );
       expect(form['applyingAs'], 'business');
-      expect(form['propertyOwner'], isNull);
+      expect(form.containsKey('propertyOwner'), isFalse);
       expect(form['lotArea'], '120');
       expect(form['professionalName'], 'Engr. Reyes');
     });

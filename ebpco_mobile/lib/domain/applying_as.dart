@@ -2,13 +2,15 @@
 /// 2026-10-21): a business is not needed to apply. Each application asks
 /// again, whatever the citizen chose at sign-up, so one account files both:
 ///
-///   - 'residential': a private individual, for their own home or other
-///     private property (or a family member's). No business; the form says
-///     whether the applicant owns the property or names the owner.
+///   - 'residential': a private individual, for their own home or private
+///     property. No business. Owner ruling 2026-10-28: a citizen applies only
+///     for themselves, so nothing is asked about the property's owner; the
+///     server refuses an application for someone else's property.
 ///   - 'business': for a registered business or commercial establishment.
 ///
-/// Kept in the application's `form` (`form.applyingAs`, `form.propertyOwner`),
-/// the same keys the citizen portal writes.
+/// Kept in the application's `form` (`form.applyingAs`), the same key the
+/// citizen portal writes. `form.propertyOwner` survives only on applications
+/// filed before the ruling, and is only ever read back for display.
 library;
 
 const applyingAsResidential = 'residential';
@@ -40,86 +42,45 @@ String? savedApplyingAs(Map<String, dynamic> form, String? businessId) {
   return businessId == null ? null : applyingAsBusiness;
 }
 
-/// Who owns the property on a residential application.
-class PropertyOwner {
-  /// True when the applicant owns it; otherwise [name] is the owner.
-  final bool isApplicant;
-  final String? name;
-  final String? relationship;
-
-  const PropertyOwner({required this.isApplicant, this.name, this.relationship});
-
-  /// `{isApplicant: true}`, or `{isApplicant: false, name, relationship?}`.
-  Map<String, dynamic> toJson() {
-    if (isApplicant) return const {'isApplicant': true};
-    final owner = name?.trim() ?? '';
-    final relation = relationship?.trim() ?? '';
-    return {
-      'isApplicant': false,
-      'name': owner,
-      if (relation.isNotEmpty) 'relationship': relation,
-    };
-  }
-
-  /// The owner a saved form names, or null when it says nothing yet.
-  static PropertyOwner? fromForm(Map<String, dynamic> form) {
-    final raw = form['propertyOwner'];
-    if (raw is! Map) return null;
-    final isApplicant = raw['isApplicant'];
-    if (isApplicant == true) return const PropertyOwner(isApplicant: true);
-    if (isApplicant != false) return null;
-    return PropertyOwner(
-      isApplicant: false,
-      name: raw['name'] is String ? raw['name'] as String : null,
-      relationship: raw['relationship'] is String ? raw['relationship'] as String : null,
-    );
-  }
-}
-
-/// The owner a residential application names when the applicant is not the
-/// owner; null otherwise.
+/// The owner a residential application filed before the 2026-10-28 ruling
+/// named, when the applicant was not the owner; null otherwise. History only:
+/// the application detail shows it, nothing asks for it any more.
 String? propertyOwnerNameOf(Map<String, dynamic> form) {
-  final owner = PropertyOwner.fromForm(form);
-  if (owner == null || owner.isApplicant) return null;
-  final name = owner.name?.trim() ?? '';
+  final raw = form['propertyOwner'];
+  if (raw is! Map || raw['isApplicant'] != false) return null;
+  final name = raw['name'] is String ? (raw['name'] as String).trim() : '';
   return name.isEmpty ? null : name;
 }
 
 /// What is still unanswered in "Applying as", worded for the citizen, or null.
-/// [ownsProperty] is null until the citizen answers "Do you own the property?".
-String? applyingAsProblem({
-  required String? applyingAs,
-  required String? businessId,
-  required bool? ownsProperty,
-  required String ownerName,
-}) {
+/// Residential needs nothing more: the citizen applies for their own property.
+String? applyingAsProblem({required String? applyingAs, required String? businessId}) {
   if (applyingAs == null) {
     return 'Choose whether you are applying as Residential / Private Individual or as a Business.';
   }
   if (applyingAs == applyingAsBusiness) {
     return businessId == null ? 'Please select a business.' : null;
   }
-  if (ownsProperty == null) return 'Please answer whether you own the property.';
-  if (!ownsProperty && ownerName.trim().isEmpty) return "Enter the property owner's full name.";
   return null;
 }
 
 /// The whole `form` to save: PATCH replaces it, so every key goes every time.
 /// [previous] is the form as last loaded, so keys this app does not edit
 /// (the portal may write more) are kept. Empty text is saved as null, as before.
+/// Never `propertyOwner`: a draft saved before the 2026-10-28 ruling may still
+/// carry one, and the server refuses a filing for someone else's property.
 Map<String, dynamic> applicationForm({
   Map<String, dynamic> previous = const {},
   required String? applyingAs,
-  PropertyOwner? propertyOwner,
   required String scopeOfWork,
   required String professionalName,
   required String prcNumber,
 }) {
   String? text(String value) => value.trim().isEmpty ? null : value.trim();
   return {
-    ...previous,
+    for (final MapEntry(:key, :value) in previous.entries)
+      if (key != 'propertyOwner') key: value,
     'applyingAs': applyingAs,
-    'propertyOwner': applyingAs == applyingAsResidential ? propertyOwner?.toJson() : null,
     'scopeOfWork': text(scopeOfWork),
     'professionalName': text(professionalName),
     'prcNumber': text(prcNumber),

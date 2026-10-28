@@ -368,7 +368,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
 
     final details = <(IconData, String, String)>[
       (Icons.category_outlined, 'Application type', app.applicationAction),
-      // A residential application filed for someone else's property names the owner.
+      // An older residential application filed for someone else's property
+      // (before the 2026-10-28 ruling) names the owner.
       if (app.propertyOwnerName case final owner?) (Icons.person_outline_rounded, 'Property owner', owner),
       if (app.renewsPermitNumber case final permit?)
         (Icons.autorenew_rounded, app.applicationAction == 'Renewal' ? 'Renewing permit' : 'Amending permit', permit),

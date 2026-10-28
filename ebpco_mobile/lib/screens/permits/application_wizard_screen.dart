@@ -115,11 +115,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   /// Who may apply for this permit type: both until the server says otherwise.
   List<String> _applicantKinds = bothApplicantKinds;
 
-  /// "Do you own the property?" on a residential application; null until answered.
-  bool? _ownsProperty;
-  final _ownerName = TextEditingController();
-  final _ownerRelationship = TextEditingController();
-
   /// The draft's form as loaded. PATCH replaces the whole form, so keys this
   /// screen does not edit are sent back as they were.
   Map<String, dynamic> _savedForm = const {};
@@ -236,8 +231,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _scopeOfWork,
       _professionalName,
       _prcNumber,
-      _ownerName,
-      _ownerRelationship,
     ]) {
       c.dispose();
     }
@@ -253,10 +246,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _businessId = app.businessId;
       _savedForm = app.form;
       _applyingAs = savedApplyingAs(app.form, app.businessId) ?? _applyingAs;
-      final owner = PropertyOwner.fromForm(app.form);
-      _ownsProperty = owner?.isApplicant;
-      _ownerName.text = owner?.name ?? '';
-      _ownerRelationship.text = owner?.relationship ?? '';
+      // A draft saved before the 2026-10-28 ruling may name another owner;
+      // it just resumes, and the next save leaves that answer out.
       _paperPermit = app.renewsPermitNumber == null && app.priorPermitClaim != null;
       _permitNumber.text = app.renewsPermitNumber ?? app.priorPermitClaim ?? '';
       if (app.renewsPermitNumber != null) {
@@ -328,23 +319,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   /// The business this application is for: none on a residential one.
   String? get _effectiveBusinessId => _isResidential ? null : _businessId;
 
-  PropertyOwner? get _propertyOwner => _ownsProperty == null
-      ? null
-      : PropertyOwner(isApplicant: _ownsProperty!, name: _ownerName.text, relationship: _ownerRelationship.text);
-
   /// What "Applying as" still lacks, or null.
-  String? get _applyingAsProblem => applyingAsProblem(
-        applyingAs: _applyingAs,
-        businessId: _businessId,
-        ownsProperty: _ownsProperty,
-        ownerName: _ownerName.text,
-      );
+  String? get _applyingAsProblem => applyingAsProblem(applyingAs: _applyingAs, businessId: _businessId);
 
   /// The whole form, as PATCH replaces it.
   Map<String, dynamic> _form() => applicationForm(
         previous: _savedForm,
         applyingAs: _applyingAs,
-        propertyOwner: _propertyOwner,
         scopeOfWork: _scopeOfWork.text,
         professionalName: _professionalName.text,
         prcNumber: _prcNumber.text,
@@ -865,7 +846,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         SoftChoiceCard(
           icon: Icons.home_outlined,
           title: applyingAsLabel(applyingAsResidential),
-          subtitle: residentialClosed ?? 'Your home or other private property',
+          subtitle: residentialClosed ?? 'For your own home or private property. No business needed.',
           selected: _isResidential,
           onTap: residentialClosed == null ? () => _chooseApplyingAs(applyingAsResidential) : null,
         ),
@@ -881,10 +862,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         if (usualUseNote(_permitType, _applicantKinds) case final note?) ...[
           const SizedBox(height: 10),
           _note(note),
-        ],
-        if (_isResidential) ...[
-          const SizedBox(height: 18),
-          _propertyOwnerFields(),
         ],
         if (_applyingAs == applyingAsBusiness) ...[
           const SizedBox(height: 18),
@@ -987,59 +964,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           ),
         ],
       );
-
-  /// Residential: no business, only who owns the property.
-  Widget _propertyOwnerFields() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _label('Do you own the property?'),
-        Row(
-          children: [
-            for (final (i, (label, owns)) in const [('Yes', true), ('No', false)].indexed) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: SoftFilterChip(
-                    label: label,
-                    selected: _ownsProperty == owns,
-                    onTap: () => setState(() {
-                      _ownsProperty = owns;
-                      _error = null;
-                    }),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (_ownsProperty == false) ...[
-          const SizedBox(height: 16),
-          _label("Property Owner's Full Name"),
-          TextField(
-            controller: _ownerName,
-            style: SoftType.field,
-            textCapitalization: TextCapitalization.words,
-            onChanged: (_) {
-              if (_error != null) setState(() => _error = null);
-            },
-            decoration: const InputDecoration(hintText: 'As written on the title or tax declaration'),
-          ),
-          const SizedBox(height: 16),
-          _label('Your Relationship to the Owner (optional)'),
-          TextField(
-            controller: _ownerRelationship,
-            style: SoftType.field,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(hintText: 'e.g. Son, Daughter, Spouse, Tenant'),
-          ),
-          const SizedBox(height: 10),
-          _note("Upload the owner's written consent or authorization with your documents."),
-        ],
-      ],
-    );
-  }
 
   /// Business: one of the citizen's active businesses, or the way to register one.
   Widget _businessPicker(BusinessesService businesses, List<Business> active) {
@@ -1403,8 +1327,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         .where((b) => b.id == _businessId)
         .map((b) => b.name)
         .firstOrNull;
-    final owner = _ownerName.text.trim();
-    final relationship = _ownerRelationship.text.trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1421,16 +1343,11 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               row('Application type', _applicationAction),
               const Divider(height: 1, color: SoftColors.line),
               row('Applying as', applyingAsLabel(_applyingAs)),
-              const Divider(height: 1, color: SoftColors.line),
-              if (_isResidential)
-                row(
-                  'Property owner',
-                  _ownsProperty == false
-                      ? (relationship.isEmpty ? owner : '$owner ($relationship)')
-                      : 'You (the applicant)',
-                )
-              else
+              // Residential names no business, and no owner: the citizen applies for their own property.
+              if (!_isResidential) ...[
+                const Divider(height: 1, color: SoftColors.line),
                 row('Business', businessName ?? 'Not chosen'),
+              ],
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(onPressed: () => _goTo(1), child: const Text('Edit')),

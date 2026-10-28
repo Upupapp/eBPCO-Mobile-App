@@ -124,7 +124,8 @@ class ApplicationSummary {
   /// What to show where the business would be: its name, or "Residential".
   String? get applicantLabel => isResidential ? 'Residential' : businessName;
 
-  /// The property owner a residential application names, when the applicant is not the owner.
+  /// The property owner a residential application filed before the 2026-10-28
+  /// ruling named, when the applicant was not the owner. History only.
   String? get propertyOwnerName => isResidential ? propertyOwnerNameOf(form) : null;
 
   /// What the status pill reads — the portal's `applicantStatusLabel`. The
