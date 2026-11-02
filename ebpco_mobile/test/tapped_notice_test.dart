@@ -9,6 +9,13 @@ void main() {
     expect(notice?.applicationId, 'a1');
   });
 
+  test('the delivery notices (ebpco-api 070) open their application like any other', () {
+    for (final type in ['out-for-delivery', 'permit-delivered']) {
+      final notice = TappedNotice.fromData({'notificationId': 'n2', 'type': type, 'applicationId': 'a2'});
+      expect(notice?.applicationId, 'a2', reason: type);
+    }
+  });
+
   test('a notice about the account, not an application, still opens', () {
     final notice = TappedNotice.fromData({'notificationId': 'n1', 'applicationId': ''});
     expect(notice?.notificationId, 'n1');

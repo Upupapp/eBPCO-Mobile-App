@@ -26,6 +26,11 @@ enum LifecycleStatus {
   approved,
   permitGenerated,
   readyForRelease,
+  // ebpco-api 070: handed to a courier. Off the numbered happy path — a
+  // delivery goes Permit Generated / Ready for Release → Out for Delivery →
+  // Completed (the citizen confirms), or back to Ready for Release when the
+  // courier returns it.
+  outForDelivery,
   released,
   completed,
   rejected,
@@ -34,7 +39,7 @@ enum LifecycleStatus {
 }
 
 /// The five steps an application detail page draws, in order. Coarser than
-/// the 19 lifecycle statuses on purpose: a citizen asks "how far along am
+/// the 20 lifecycle statuses on purpose: a citizen asks "how far along am
 /// I", not which desk has the file. See [LifecycleStatusX.journeyStep].
 const List<String> journeySteps = ['Apply', 'Review', 'Payment', 'Approval', 'Release'];
 
@@ -54,6 +59,7 @@ extension LifecycleStatusX on LifecycleStatus {
         LifecycleStatus.approved => 'Approved',
         LifecycleStatus.permitGenerated => 'Permit Generated',
         LifecycleStatus.readyForRelease => 'Ready for Release',
+        LifecycleStatus.outForDelivery => 'Out for Delivery',
         LifecycleStatus.released => 'Released',
         LifecycleStatus.completed => 'Completed',
         LifecycleStatus.rejected => 'Rejected',
@@ -79,6 +85,7 @@ extension LifecycleStatusX on LifecycleStatus {
         LifecycleStatus.approved => 'Your application has been approved. Your permit is being generated.',
         LifecycleStatus.permitGenerated => 'Your permit has been generated and is being prepared for release.',
         LifecycleStatus.readyForRelease => 'Your permit is ready for release. Visit the issuing office or check for pickup instructions.',
+        LifecycleStatus.outForDelivery => 'Your permit is on its way by courier. Confirm here when you receive it.',
         LifecycleStatus.released => 'Your permit has been released.',
         LifecycleStatus.completed => 'This application is complete.',
         LifecycleStatus.rejected => 'Your application was rejected. See remarks for details.',
@@ -90,7 +97,9 @@ extension LifecycleStatusX on LifecycleStatus {
   /// the index of the step under way, [journeySteps].length once the permit
   /// is out, and null once the application is closed without one (rejected,
   /// withdrawn, expired), where the road no longer applies. Revision Required
-  /// stays at Review: it is the office's review, waiting on the citizen.
+  /// stays at Review: it is the office's review, waiting on the citizen. Out
+  /// for Delivery stays at Release: the permit is not in the citizen's hands
+  /// until they confirm it arrived.
   int? get journeyStep => switch (this) {
         LifecycleStatus.draft => 0,
         LifecycleStatus.submitted ||
@@ -103,22 +112,30 @@ extension LifecycleStatusX on LifecycleStatus {
         LifecycleStatus.paymentUnderVerification ||
         LifecycleStatus.paymentVerified => 2,
         LifecycleStatus.forApproval => 3,
-        LifecycleStatus.approved || LifecycleStatus.permitGenerated || LifecycleStatus.readyForRelease => 4,
+        LifecycleStatus.approved ||
+        LifecycleStatus.permitGenerated ||
+        LifecycleStatus.readyForRelease ||
+        LifecycleStatus.outForDelivery => 4,
         LifecycleStatus.released || LifecycleStatus.completed => journeySteps.length,
         LifecycleStatus.rejected || LifecycleStatus.cancelled || LifecycleStatus.expired => null,
       };
 
-  static LifecycleStatus fromLabel(String label) {
+  /// The status named [label], or null for one this app does not know yet.
+  /// The server may add a status before the app learns it (ebpco-api 070
+  /// added Out for Delivery); that must never break a screen, and it must
+  /// never read as something it is not — an unknown status once fell back
+  /// to Draft, which offered "Continue Application" on a filed one.
+  static LifecycleStatus? tryFromLabel(String label) {
     for (final status in LifecycleStatus.values) {
       if (status.label == label) return status;
     }
-    // Loud on purpose, same discipline as the reference app's own
-    // fromLabel: a silent fallback here would render a real, unrecognized
-    // status as something it isn't rather than surfacing the drift.
-    assert(false, 'Unknown lifecycle status label "$label" — check it against eBPCOBackend/src/modules/applications/domain/lifecycle.ts.');
-    return LifecycleStatus.draft;
+    return null;
   }
 }
+
+/// The "what happens next" line for a status this app does not know yet —
+/// the portal's `nextStepTextOf`.
+const unknownStatusNextStep = 'The office is working on your application. Check back here for updates.';
 
 /// The coarse, citizen-facing status — what every screen in this app
 /// renders. Prefer the server's own `applicantStatus` field over deriving
@@ -167,6 +184,7 @@ extension ApplicantStatusX on ApplicantStatus {
         LifecycleStatus.approved => ApplicantStatus.approved,
         LifecycleStatus.permitGenerated => ApplicantStatus.approved,
         LifecycleStatus.readyForRelease => ApplicantStatus.readyForRelease,
+        LifecycleStatus.outForDelivery => ApplicantStatus.readyForRelease,
         LifecycleStatus.released => ApplicantStatus.readyForRelease,
         LifecycleStatus.completed => ApplicantStatus.readyForRelease,
         LifecycleStatus.rejected => ApplicantStatus.rejected,
@@ -206,6 +224,9 @@ final Map<String, StatusStyle> _statusStyleByLabel = {
   'Payment Verification': const StatusStyle(AppColors.warning100, AppColors.warningText),
   'Approved': const StatusStyle(AppColors.success100, AppColors.successText),
   'Ready for Release': const StatusStyle(AppColors.success100, AppColors.successText),
+  // On its way by courier (ebpco-api 070): moving, not yet in hand — the
+  // portal's badge-blue, as Submitted.
+  'Out for Delivery': const StatusStyle(AppColors.info100, AppColors.infoText),
   'Released': const StatusStyle(AppColors.success100, AppColors.successText),
   'Completed': const StatusStyle(AppColors.success100, AppColors.successText),
   'Payment Verified': const StatusStyle(AppColors.success100, AppColors.successText),

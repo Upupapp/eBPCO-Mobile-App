@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ebpco_mobile/theme/app_status.dart';
 
 /// The step tracker on an application's page (2026-10-01): five steps, and
-/// every one of the 19 lifecycle statuses lands on one of them, past them, or
+/// every one of the 20 lifecycle statuses lands on one of them, past them, or
 /// off the road entirely.
 void main() {
   int? step(LifecycleStatus status) => status.journeyStep;
@@ -23,6 +23,8 @@ void main() {
     expect(journeySteps[step(LifecycleStatus.paymentVerified)!], 'Payment');
     expect(journeySteps[step(LifecycleStatus.forApproval)!], 'Approval');
     expect(journeySteps[step(LifecycleStatus.readyForRelease)!], 'Release');
+    // With the courier (ebpco-api 070): not in hand until the citizen confirms.
+    expect(journeySteps[step(LifecycleStatus.outForDelivery)!], 'Release');
   });
 
   test('a released permit has every step done', () {

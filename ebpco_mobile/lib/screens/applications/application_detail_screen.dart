@@ -10,9 +10,11 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/permit_delivery.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
+import '../../services/session_service.dart';
 import '../../services/upload_limits.dart';
 import '../../theme/app_status.dart';
 import '../../theme/app_typography.dart';
@@ -26,6 +28,7 @@ import '../payments/order_of_payment_screen.dart';
 import '../payments/payment_flow_screen.dart';
 import '../payments/payments_list_screen.dart';
 import '../permits/application_wizard_screen.dart';
+import 'permit_delivery_card.dart';
 import 'permit_document_screen.dart';
 import '../../widgets/blank_form_link.dart';
 import '../../widgets/message_bar.dart';
@@ -47,6 +50,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   List<RequirementDoc> _requirements = [];
   /// What the office asked for, while the application is returned to the citizen.
   List<InstructionLetter> _letters = [];
+  /// How the permit reaches the citizen (ebpco-api 070); null until read, or
+  /// when it cannot be — the page stands without it.
+  PermitDeliveryState? _delivery;
+  /// The issued permit, for its number and the office's claim instructions;
+  /// read only while it is ready to collect or with the courier.
+  PermitInfo? _permit;
   bool _loading = true;
   bool _cancelling = false;
   bool _sendingBack = false;
@@ -82,9 +91,20 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           // The remarks are also on the timeline; the card stands without them.
         }
       }
+      // Pick up or delivery by courier, and where a delivery stands — read on
+      // every load, since the office marking it delivered moves no status.
+      final status = (results[0] as ApplicationSummary).lifecycleStatus;
+      final open = !const {'Cancelled', 'Rejected', 'Expired'}.contains(status);
+      final permitOut = const {'Ready for Release', 'Out for Delivery'}.contains(status);
+      final deliveryCall = open ? _optional(_api.getDelivery(widget.applicationId)) : Future<PermitDeliveryState?>.value();
+      final permitCall = permitOut ? _optional(_api.getPermit(widget.applicationId)) : Future<PermitInfo?>.value();
+      final delivery = await deliveryCall;
+      final permit = await permitCall;
       if (!mounted) return;
       setState(() {
         _letters = letters;
+        _delivery = delivery;
+        _permit = permit;
         _application = results[0] as ApplicationSummary;
         _timeline = results[1] as List<TimelineEntry>;
         _documents = results[2] as List<DocumentEntry>;
@@ -100,6 +120,24 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
 
   void _toast(String message) => ScaffoldMessenger.of(context)
       .showSnackBar(messageBar(message));
+
+  /// A read the page can stand without: its answer, or null when it fails.
+  static Future<T?> _optional<T>(Future<T> call) async {
+    try {
+      return await call;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// "I received my permit" closed the application: its status, timeline and
+  /// permit release all moved.
+  Future<void> _onPermitReceived(PermitDeliveryState state) async {
+    setState(() => _delivery = state);
+    await _load();
+    if (!mounted) return;
+    context.read<ApplicationsService>().refresh();
+  }
 
   /// Picks a file, makes it something the server accepts (`readyForUpload`),
   /// hands it to [send] and shows what [send] reports — or why it could not
@@ -330,9 +368,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   Widget _body(ApplicationSummary app) {
-    final lifecycle = LifecycleStatusX.fromLabel(app.lifecycleStatus);
-    final step = lifecycle.journeyStep;
-    final settled = step == null || step >= journeySteps.length;
+    // Null for a status this app does not know yet: the page still opens,
+    // with the server's own word on the badge and a plain next step.
+    final lifecycle = LifecycleStatusX.tryFromLabel(app.lifecycleStatus);
+    final step = lifecycle?.journeyStep;
+    final settled = lifecycle != null && (step == null || step >= journeySteps.length);
     final showPay =
         app.orderOfPayment != null &&
         (app.paymentStatus == 'Not Yet Available' ||
@@ -354,12 +394,16 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             () => _open(PermitDocumentScreen(applicationId: app.id, applicationReference: app.displayReference))),
     ];
 
-    final IconData nextIcon = step == null
+    final IconData nextIcon = lifecycle == null
+        ? Icons.hourglass_top_rounded
+        : step == null
         ? Icons.do_not_disturb_on_outlined
         : lifecycle == LifecycleStatus.draft
         ? Icons.edit_note_rounded
         : lifecycle == LifecycleStatus.revisionRequired
         ? Icons.assignment_return_outlined
+        : lifecycle == LifecycleStatus.outForDelivery
+        ? Icons.local_shipping_outlined
         : showPay
         ? Icons.payments_outlined
         : showPermit || settled
@@ -387,7 +431,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     ];
 
     final chains = groupDocumentChains(_documents);
-    final missing = !const {'Draft', 'Cancelled', 'Rejected', 'Expired', 'Released', 'Completed'}.contains(app.lifecycleStatus)
+    final missing = !const {'Draft', 'Cancelled', 'Rejected', 'Expired', 'Out for Delivery', 'Released', 'Completed'}
+            .contains(app.lifecycleStatus)
         ? _missingRequired
         : const <RequirementDoc>[];
 
@@ -399,8 +444,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
         _NextStepCard(
           icon: nextIcon,
           eyebrow: settled ? 'Status' : 'What happens next',
-          muted: step == null,
-          text: lifecycle.nextStep,
+          muted: lifecycle != null && step == null,
+          text: lifecycle?.nextStep ?? unknownStatusNextStep,
           actions: [
             for (final (i, action) in actions.indexed)
               SoftPillButton(
@@ -467,6 +512,20 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
             paid: app.paymentStatus == 'Paid',
             pendingVerification: !const {'Not Yet Available', 'Overdue', 'Paid'}.contains(app.paymentStatus),
             onView: () => _open(OrderOfPaymentScreen(applicationId: app.id)),
+          ),
+        ],
+        // Pick up at the office, or delivery by courier (ebpco-api 070).
+        if (_delivery case final delivery? when !const {'Cancelled', 'Rejected', 'Expired'}.contains(app.lifecycleStatus)) ...[
+          const SizedBox(height: 12),
+          PermitDeliveryCard(
+            state: delivery,
+            permitNumber: _permit?.permitNumber,
+            release: _permit?.release,
+            profile: context.watch<SessionService>().profile,
+            save: (body) => _api.setDelivery(app.id, body),
+            confirmReceived: () => _api.confirmPermitReceived(app.id),
+            onChanged: (next) => setState(() => _delivery = next),
+            onReceived: _onPermitReceived,
           ),
         ],
         const SizedBox(height: 26),

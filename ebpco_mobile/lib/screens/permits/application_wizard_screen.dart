@@ -14,6 +14,7 @@ import '../../domain/account_verification.dart';
 import '../../domain/applying_as.dart';
 import '../../domain/models.dart';
 import '../../domain/draft_resume.dart';
+import '../../domain/permit_delivery.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../domain/who_may_apply.dart';
@@ -25,6 +26,7 @@ import '../../services/upload_limits.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/choice_card.dart';
+import '../../widgets/delivery_choice_form.dart';
 import '../../widgets/document_library_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
@@ -48,6 +50,8 @@ import '../../widgets/message_bar.dart';
 /// verified account; until then the draft is saved and the citizen is told
 /// why it cannot be submitted yet. A permit type the Municipality takes from
 /// one kind of applicant only (ebpco-api 068) offers only that kind.
+/// Review & Submit asks how the permit is to be received (ebpco-api 070):
+/// picked up at the office, or delivered by courier to an address.
 class ApplicationWizardScreen extends StatefulWidget {
   /// Set when starting fresh from the catalog.
   final String? permitType;
@@ -159,6 +163,19 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   bool get _isResuming => widget.draftId != null;
 
+  /// How the citizen will receive the permit (ebpco-api 070): Pick up by
+  /// default; Delivery prefilled from their profile. Saved on the draft just
+  /// before it is filed, and read back when a draft is resumed.
+  late final DeliveryChoiceController _delivery;
+
+  /// The server's wording once read; the app's own copy of it until then.
+  String _feeNote = deliveryFeeNote;
+  String? _deliveryProblem;
+
+  /// What the server holds for this draft, so a pick-up never sent anywhere
+  /// is not sent now.
+  String _deliveryOnServer = receiveByPickup;
+
   late final ApplicationsService _applications;
 
   @override
@@ -168,6 +185,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     _permitType = widget.permitType ?? '';
     final session = context.read<SessionService>();
     _applyingAs = defaultApplyingAs(session.profile?.registeredAs);
+    _delivery = DeliveryChoiceController(address: addressFromProfile(session.profile));
     if (!_isResuming && (widget.applicationAction == 'Renewal' || widget.applicationAction == 'Amendment')) {
       _applicationAction = widget.applicationAction!;
       _permitNumber.text = widget.permitNumber?.trim() ?? '';
@@ -225,6 +243,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     // After this frame, not during teardown, since refresh notifies at once.
     if (_draftId != null) Future.microtask(_applications.refresh);
     _scroll.dispose();
+    _delivery.dispose();
     for (final c in [
       _permitNumber,
       _projectAddress,
@@ -274,11 +293,55 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         detailsDone: _projectAddress.text.trim().isNotEmpty && _scopeOfWork.text.trim().isNotEmpty,
         documentsDone: _requiredDocumentsComplete,
       ));
+      unawaited(_loadDelivery());
     } on ApiError catch (e) {
       setState(() => _error = e.citizenMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// A resumed draft's own choice of how to receive the permit, read back
+  /// (`GET /applications/{id}/delivery`). Nothing is lost if it cannot be
+  /// read: the choice stays Pick up, as every application was before.
+  Future<void> _loadDelivery() async {
+    final id = _draftId;
+    if (id == null) return;
+    try {
+      final state = await _api.getDelivery(id);
+      if (!mounted) return;
+      setState(() {
+        _feeNote = state.feeNote;
+        _deliveryOnServer = state.receiveBy;
+        if (state.deliveryChosen case final d?) _delivery.load(receiveByDelivery, addressFromDelivery(d));
+      });
+    } catch (_) {
+      // The page stands without it.
+    }
+  }
+
+  /// Saves the choice on the draft (`PUT /applications/{id}/delivery`):
+  /// null when saved, or the server's reason it was not. Nothing is sent for
+  /// a pick-up the server already holds — every application starts as one.
+  Future<String?> _saveDeliveryChoice() async {
+    final id = _draftId;
+    if (id == null || (!_delivery.isDelivery && _deliveryOnServer == receiveByPickup)) return null;
+    try {
+      final state = await _api.setDelivery(id, _delivery.requestBody);
+      _deliveryOnServer = state.receiveBy;
+      _feeNote = state.feeNote;
+      return null;
+    } on ApiError catch (e) {
+      return e.citizenMessage;
+    }
+  }
+
+  /// Why the delivery address cannot be used, shown under it; null for a
+  /// pick-up or a usable address.
+  String? _checkDeliveryAddress() {
+    final problem = _delivery.problem;
+    setState(() => _deliveryProblem = problem);
+    return problem;
   }
 
   Future<void> _loadRequirements() async {
@@ -680,11 +743,22 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         return;
       }
     }
+    var saved = 'Draft saved. Continue it any time from My Applications.';
+    // Save on Review (an account not verified yet, too) keeps the delivery
+    // choice, so Continue brings it back. An address the courier could not
+    // use is not saved, and the citizen is told so.
+    if (_step == 4 && _draftId != null) {
+      final problem = _checkDeliveryAddress();
+      final notSaved = problem == null ? await _saveDeliveryChoice() : null;
+      if (problem != null) {
+        saved = 'Draft saved. Your delivery address was not saved: $problem';
+      } else if (notSaved != null) {
+        saved = 'Draft saved. How you receive the permit was not saved: $notSaved';
+      }
+    }
     if (!mounted) return;
     context.read<ApplicationsService>().refresh();
-    ScaffoldMessenger.of(context).showSnackBar(
-      messageBar('Draft saved. Continue it any time from My Applications.',),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(messageBar(saved));
     Navigator.of(context).pop();
   }
 
@@ -696,12 +770,29 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       setState(() => _error = 'Please check both declarations to continue.');
       return;
     }
+    // The server's own address rules, checked before anything is sent.
+    final deliveryProblem = _checkDeliveryAddress();
+    if (deliveryProblem != null) {
+      setState(() => _error = 'Delivery address: $deliveryProblem');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       await _attachPending();
+      // How the permit is received, on the draft before it is filed: a
+      // refused address stops here, with nothing filed yet.
+      final notSaved = await _saveDeliveryChoice();
+      if (notSaved != null) {
+        if (!mounted) return;
+        setState(() {
+          if (_delivery.isDelivery) _deliveryProblem = notSaved;
+          _error = 'How you receive the permit was not saved: $notSaved';
+        });
+        return;
+      }
       await _api.submitDraft(_draftId!);
       if (!mounted) return;
       context.read<ApplicationsService>().refresh();
@@ -1373,7 +1464,26 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 22),
+        // Pick up at the office, or delivery by courier (ebpco-api 070, owner
+        // request 2026-11-03). Saved on the draft just before it is filed;
+        // changeable on the application page until the permit is handed to
+        // the courier.
+        DeliveryChoiceForm(
+          key: const ValueKey('wizard-receive-by'),
+          controller: _delivery,
+          feeNote: _feeNote,
+          problem: _deliveryProblem,
+          onEdited: () {
+            if (_deliveryProblem == null) return;
+            setState(() {
+              _deliveryProblem = null;
+              if (_error?.startsWith('Delivery address:') ?? false) _error = null;
+            });
+          },
+          prefill: () => addressFromProfile(context.read<SessionService>().profile),
+        ),
+        const SizedBox(height: 18),
         if (blocked != null)
           ..._notVerifiedYet(blocked, verification)
         else ...[

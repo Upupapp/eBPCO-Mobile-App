@@ -24,7 +24,8 @@ const Map<String, Set<String>?> _filterStatuses = {
   'Revision Required': {'Revision Required'},
   'Payment': {'Assessed', 'Payment Submitted', 'Payment Under Verification', 'Payment Verified', 'For Approval'},
   'Approved': {'Approved', 'Permit Generated'},
-  'Ready for Release': {'Ready for Release'},
+  // A permit on its way by courier (ebpco-api 070) sits with the ones ready to collect.
+  'Ready for Release': {'Ready for Release', 'Out for Delivery'},
   'Released': {'Released'},
   'Completed': {'Completed'},
   'Rejected': {'Rejected'},

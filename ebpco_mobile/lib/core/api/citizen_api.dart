@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../../domain/account_verification.dart';
 import '../../domain/earlier_records.dart';
 import '../../domain/models.dart';
+import '../../domain/permit_delivery.dart';
 import '../../domain/who_may_apply.dart';
 import '../config/app_config.dart';
 import 'api_client.dart';
@@ -253,6 +254,31 @@ class CitizenApi {
   /// hide, so callers should let it surface via [ApiError].
   Future<PermitInfo> getPermit(String applicationId) async =>
       PermitInfo.fromJson(await _client.get<Map<String, dynamic>>('/applications/$applicationId/permit'));
+
+  // ── Permit delivery (ebpco-api 070) ──────────────────────────────────
+
+  /// `GET /applications/{id}/delivery` — pick up at the office or delivery by
+  /// courier, where a delivery stands, and what the citizen may do now
+  /// (`canChange`, `canConfirmReceipt`). 404 for an application not theirs.
+  Future<PermitDeliveryState> getDelivery(String applicationId) async =>
+      PermitDeliveryState.fromJson(await _client.get<Map<String, dynamic>>('/applications/$applicationId/delivery'));
+
+  /// `PUT /applications/{id}/delivery` — pick up, or delivery to an address
+  /// ([deliveryChoiceBody]). Works on a Draft (the wizard sets it before
+  /// filing). 422 with a `detail` for an address the courier cannot use; 409
+  /// once the permit has left the office.
+  Future<PermitDeliveryState> setDelivery(String applicationId, Map<String, dynamic> body) async =>
+      PermitDeliveryState.fromJson(await _client.put<Map<String, dynamic>>('/applications/$applicationId/delivery', body: body));
+
+  /// `POST /applications/{id}/delivery/received` — "I received my permit":
+  /// closes the delivery and the application (`lifecycleStatus: 'Completed'`).
+  /// 409 when it has not been sent yet, or is already closed.
+  Future<PermitDeliveryState> confirmPermitReceived(String applicationId) async =>
+      PermitDeliveryState.fromJson(await _client.post<Map<String, dynamic>>(
+        '/applications/$applicationId/delivery/received',
+        idempotencyKey: _client.newIdempotencyKey(),
+        body: const {},
+      ));
 
   /// `GET /applications/renewal-check` — whether [permitNumber] is a permit
   /// eBPCO issued to this citizen, for [businessId], of [permitType]. The

@@ -22,6 +22,10 @@ void main() {
     expect(_app('For Approval', 'Payment Verification').statusLabel, 'Payment Verified');
   });
 
+  test('a permit with the courier says it is on its way (ebpco-api 070)', () {
+    expect(_app('Out for Delivery', 'Ready for Release').statusLabel, 'Out for Delivery');
+  });
+
   test('says when the application is waiting on the citizen', () {
     expect(_app('Revision Required', 'Under Review').statusLabel, 'Revision Required');
     expect(_app('Assessed', 'Payment Verification').statusLabel, 'Awaiting Payment');

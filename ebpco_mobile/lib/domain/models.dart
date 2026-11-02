@@ -78,7 +78,8 @@ class ApplicationSummary {
   final String? location;
   final String? renewsPermitNumber;
   final String? priorPermitClaim;
-  /// The raw, 19-value internal status (e.g. "Under Evaluation").
+  /// The raw, 20-value internal status (e.g. "Under Evaluation"); one the
+  /// app does not know yet is shown as the server's [applicantStatus].
   final String lifecycleStatus;
   /// The coarse, citizen-facing projection — prefer this for display.
   final String applicantStatus;
@@ -135,8 +136,11 @@ class ApplicationSummary {
   /// The word on the badge, the same as the citizen portal's `applicantStatusLabel`: the coarse
   /// status, except where it would say the wrong thing — a completed application read "Ready for
   /// Release", and one waiting on the citizen read as the office still working on it.
+  /// Out for Delivery (ebpco-api 070) is on its way by courier, not waiting at
+  /// the office; it still counts as Ready for Release.
   String get statusLabel => switch (lifecycleStatus) {
         'Cancelled' => 'Cancelled',
+        'Out for Delivery' => 'Out for Delivery',
         'Released' => 'Released',
         'Completed' => 'Completed',
         'Payment Verified' || 'For Approval' => 'Payment Verified',
@@ -436,15 +440,32 @@ List<({DocumentEntry current, List<DocumentEntry> superseded})> groupDocumentCha
 
 class PermitRelease {
   final String status;
+  /// 'Courier Delivery' once a delivered permit is confirmed or closed (ebpco-api 070).
   final String? method;
   final String? releasedAt;
 
-  const PermitRelease({required this.status, required this.method, required this.releasedAt});
+  /// Where, when and with what to collect it, as the Releasing Officer typed
+  /// them. Null when not given, or from an older server.
+  final String? claimLocation;
+  final String? officeHours;
+  final List<String> bringWithYou;
+
+  const PermitRelease({
+    required this.status,
+    required this.method,
+    required this.releasedAt,
+    this.claimLocation,
+    this.officeHours,
+    this.bringWithYou = const [],
+  });
 
   factory PermitRelease.fromJson(Map<String, dynamic> json) => PermitRelease(
         status: json['status'] as String,
         method: json['method'] as String?,
         releasedAt: json['releasedAt'] as String?,
+        claimLocation: json['claimLocation'] as String?,
+        officeHours: json['officeHours'] as String?,
+        bringWithYou: (json['bringWithYou'] as List<dynamic>?)?.whereType<String>().toList() ?? const [],
       );
 }
 
