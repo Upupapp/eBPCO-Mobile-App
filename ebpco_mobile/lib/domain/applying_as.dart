@@ -1,6 +1,6 @@
 /// Who an application is for (ebpco-api migration 067, owner request
 /// 2026-10-21): a business is not needed to apply. Each application asks
-/// again, whatever the citizen chose at sign-up, so one account files both:
+/// again, so one account files both (sign-up no longer asks, 4 Nov 2026):
 ///
 ///   - 'residential': a private individual, for their own home or private
 ///     property. No business. Owner ruling 2026-10-28: a citizen applies only
@@ -16,13 +16,13 @@ library;
 const applyingAsResidential = 'residential';
 const applyingAsBusiness = 'business';
 
-/// What the wizard's "Applying as" starts on, from what the citizen chose at
-/// sign-up. Both, or nothing chosen, starts on neither: the citizen picks.
-String? defaultApplyingAs(String? registeredAs) => switch (registeredAs) {
-      'residential' => applyingAsResidential,
-      'business' => applyingAsBusiness,
-      _ => null,
-    };
+/// What the wizard's "Applying as" starts on (owner, 4 Nov 2026: sign-up no
+/// longer asks): Residential for a citizen with no active business, once their
+/// list has loaded; otherwise nothing, and the citizen picks. A list that did
+/// not load says nothing either way. From a business's own page the wizard has
+/// already chosen Business.
+String? startingApplyingAs({required bool listLoaded, required int activeBusinesses}) =>
+    listLoaded && activeBusinesses == 0 ? applyingAsResidential : null;
 
 /// The server's reading (`applyingAsOf`): what the form says, else a business
 /// on the application means 'business'. An application filed before this

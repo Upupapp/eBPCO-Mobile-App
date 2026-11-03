@@ -184,7 +184,6 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     _applications = context.read<ApplicationsService>();
     _permitType = widget.permitType ?? '';
     final session = context.read<SessionService>();
-    _applyingAs = defaultApplyingAs(session.profile?.registeredAs);
     _delivery = DeliveryChoiceController(address: addressFromProfile(session.profile));
     if (!_isResuming && (widget.applicationAction == 'Renewal' || widget.applicationAction == 'Amendment')) {
       _applicationAction = widget.applicationAction!;
@@ -195,7 +194,14 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BusinessesService>().refresh();
+      final businesses = context.read<BusinessesService>();
+      // "Applying as" starts from what the citizen has, once their businesses
+      // are known; a choice already made (or a draft's) is never overwritten.
+      businesses.refresh().then((_) {
+        if (!mounted || _isResuming || _applyingAs != null) return;
+        final start = startingApplyingAs(listLoaded: businesses.error == null, activeBusinesses: businesses.active.length);
+        if (start != null) _chooseApplyingAs(start);
+      });
       // The citizen's permits issued before eBPCO, offered as quick picks
       // for a Renewal or Amendment's permit number.
       context.read<EarlierRecordsService>().refresh();

@@ -20,11 +20,10 @@ ApplicationSummary _app({String? businessId, String? businessName, Object? apply
     });
 
 void main() {
-  test('starts on what the citizen chose at sign-up; Both or nothing asks', () {
-    expect(defaultApplyingAs('residential'), applyingAsResidential);
-    expect(defaultApplyingAs('business'), applyingAsBusiness);
-    expect(defaultApplyingAs('both'), isNull);
-    expect(defaultApplyingAs(null), isNull);
+  test('starts on Residential for a citizen with no active business; with businesses, or no list, it asks', () {
+    expect(startingApplyingAs(listLoaded: true, activeBusinesses: 0), applyingAsResidential);
+    expect(startingApplyingAs(listLoaded: true, activeBusinesses: 2), isNull);
+    expect(startingApplyingAs(listLoaded: false, activeBusinesses: 0), isNull);
   });
 
   group('what an application is for', () {
