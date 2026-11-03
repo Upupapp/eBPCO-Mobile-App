@@ -25,6 +25,6 @@ class AppConfig {
   /// the same address the portal's printed permit encodes.
   static const String userPortalBaseUrl = String.fromEnvironment(
     'EBPCO_USER_PORTAL_BASE_URL',
-    defaultValue: 'https://fastidious-chimera-7a7a18.netlify.app',
+    defaultValue: 'https://citizen.castilla-ebpco.online',
   );
 }
