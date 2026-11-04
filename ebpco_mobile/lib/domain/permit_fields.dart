@@ -6,10 +6,10 @@
 /// prints too. Pinned, copied, in test/permit_fields_test.dart; change all
 /// three together.
 ///
-/// Sources: the owner's name, contact and address from the citizen's account
-/// (the application record carries no owner; a snapshot on the permit row is
-/// a backend job, as on both portals); Location from the application's own
-/// site, printed once; Business name only on a business application, so the
+/// Sources: the owner's name, contact and address as the permit was issued,
+/// kept on the permit row (server migration 073), else — an older server, or
+/// no permit yet — the citizen's account, as both portals do; Location from
+/// the application's own site, printed once; Business name only on a business application, so the
 /// occupancy is the only statement of use.
 library;
 
@@ -180,8 +180,15 @@ PermitDocumentContent permitDocumentContent({
   );
   final order = app.orderOfPayment;
   String onFile(String? value) => (value?.trim().isEmpty ?? true) ? 'Not on file' : value!.trim();
-  final address = owner == null ? '' : addressLine([owner.street, owner.barangay, owner.city, owner.province]);
-  final fullName = owner?.fullName ?? '';
+  // As issued when the server kept it (migration 073); the account otherwise.
+  final kept = permit?.keptOwner;
+  final fullName = kept != null ? kept.name : owner?.fullName;
+  final contact = kept != null ? kept.contact : owner?.mobileNumber;
+  final address = kept != null
+      ? kept.address
+      : owner == null
+          ? null
+          : addressLine([owner.street, owner.barangay, owner.city, owner.province]);
 
   return PermitDocumentContent(
     office: office,
@@ -200,7 +207,7 @@ PermitDocumentContent permitDocumentContent({
       (PermitLabels.ownerName, onFile(fullName)),
       // Only a business application names a business (design review I6).
       if (app.businessNameOnDocument case final name?) (PermitLabels.businessName, name),
-      (PermitLabels.contactNumber, onFile(owner?.mobileNumber)),
+      (PermitLabels.contactNumber, onFile(contact)),
       // The whole address, as the Admin Portal prints it; it printed the street alone.
       (PermitLabels.address, onFile(address)),
     ],

@@ -567,6 +567,13 @@ class PermitInfo {
   final String? approvingOfficial;
   final String? approvingOffice;
 
+  /// The Owner / Applicant block as the permit was issued, kept on the permit
+  /// row since server migration 073, so a later profile edit does not rewrite
+  /// an issued permit: each field null where nothing was on file (contact is
+  /// the mobile number). Null as a whole from an older server, which sends no
+  /// `ownerName`; the permit then prints the citizen's account, as before.
+  final ({String? name, String? address, String? contact})? keptOwner;
+
   const PermitInfo({
     required this.permitNumber,
     required this.issuedDate,
@@ -576,6 +583,7 @@ class PermitInfo {
     this.expiresOn,
     this.approvingOfficial,
     this.approvingOffice,
+    this.keptOwner,
   });
 
   factory PermitInfo.fromJson(Map<String, dynamic> json) {
@@ -589,6 +597,13 @@ class PermitInfo {
       expiresOn: json['expiresOn'] as String?,
       approvingOfficial: json['approvingOfficial'] as String?,
       approvingOffice: json['approvingOffice'] as String?,
+      keptOwner: json.containsKey('ownerName')
+          ? (
+              name: json['ownerName'] as String?,
+              address: json['ownerAddress'] as String?,
+              contact: json['ownerContact'] as String?,
+            )
+          : null,
     );
   }
 }

@@ -58,7 +58,9 @@ and the portal say and show the same things. Some lines above are superseded by 
   Office"; OBO / MPDO only as short forms. The Requirements sheet, document headers, Help and the
   approval's fallback read it.
 - **Printed permit.** The portal's field map, label for label and in order: "Owner / Permittee
-  name", "Business name" (business applications only), "Contact number", the full "Address",
+  name", "Business name" (business applications only), "Contact number", the full "Address" (the
+  owner as the permit was issued, kept on the permit since server migration 073, so a later
+  profile edit no longer rewrites it; the account only from an older server or before issue),
   one "Location" row, "Application type", "Date applied", then the occupancy and scope; one
   assessment table (fees, "Total amount due", "Balance", "Order of Payment No."); "No conditions
   were recorded by the office."; "Signed copy available at the release desk" on an issued permit;

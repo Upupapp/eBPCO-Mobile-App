@@ -167,6 +167,30 @@ void main() {
       expect(preview.footer.first, startsWith('This is a system-generated preview'));
     });
 
+    test('the owner as the permit was issued (server 073) wins over the account; the account only without it', () {
+      final kept = PermitInfo.fromJson({
+        'permitNumber': 'BP-2026-000001',
+        'issuedDate': '2026-11-04',
+        'conditions': const [],
+        'ownerName': 'Juan P. Dela Cruz',
+        'ownerAddress': '5 Mabini Street, Poblacion, Castilla, Sorsogon',
+        'ownerContact': null,
+      });
+      expect(kept.keptOwner, (name: 'Juan P. Dela Cruz', address: '5 Mabini Street, Poblacion, Castilla, Sorsogon', contact: null));
+      final printed = _content(permit: kept).owner;
+      expect(_value(printed, 'Owner / Permittee name'), 'Juan P. Dela Cruz');
+      expect(_value(printed, 'Address'), '5 Mabini Street, Poblacion, Castilla, Sorsogon');
+      // Nothing on file when issued reads so, never the profile's current number.
+      expect(_value(printed, 'Contact number'), 'Not on file');
+
+      // An older server sends no ownerName: the account, as before.
+      expect(_permit().keptOwner, isNull);
+      final fallback = _content().owner;
+      expect(_value(fallback, 'Owner / Permittee name'), 'Juan Dela Cruz');
+      expect(_value(fallback, 'Contact number'), '09171234567');
+      expect(_value(fallback, 'Address'), '10 Rizal Street, Bonga, Castilla, Sorsogon');
+    });
+
     testWidgets('on a phone the permit reflows and scrolls: nothing cut off, every label readable', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;

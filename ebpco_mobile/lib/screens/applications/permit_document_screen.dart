@@ -93,7 +93,7 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
     return permitDocumentContent(
       app: app,
       permit: _permit,
-      // The citizen's account, as both portals read it (the record carries no owner).
+      // The citizen's account: only where the permit keeps no owner of its own (an older server, or not issued).
       owner: context.watch<SessionService>().profile,
       business: businesses.isEmpty ? null : businesses.first,
       verifyBaseUrl: AppConfig.userPortalBaseUrl,
