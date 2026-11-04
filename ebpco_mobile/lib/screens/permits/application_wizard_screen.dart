@@ -109,6 +109,19 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Which step-1 field [_error] belongs to (design review I14, 4 Nov 2026):
+  /// its message then shows under that field, not in the line above
+  /// Continue, which stays for errors no field holds (the server's). A field
+  /// shows it only while [_error] still is it, so every `_error = null`
+  /// clears both.
+  ({String field, String message})? _fieldErrorState;
+
+  /// Where each step-1 field sits, to bring it on screen when Continue is refused for it.
+  final Map<String, GlobalKey> _fieldKeys = {
+    for (final field in [_fieldApplyingAs, _fieldOccupancy, _fieldOccupancyOther, _fieldBusiness]) field: GlobalKey(),
+  };
+  final _occupancyOtherFocus = FocusNode();
+
   String? _draftId;
   late String _permitType;
   String _applicationAction = 'New';
@@ -274,6 +287,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     // After this frame, not during teardown, since refresh notifies at once.
     if (_draftId != null) Future.microtask(_applications.refresh);
     _scroll.dispose();
+    _occupancyOtherFocus.dispose();
     _delivery.dispose();
     for (final c in [
       _permitNumber,
@@ -442,6 +456,47 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
 
   String get _typedPermitNumber => _permitNumber.text.trim().toUpperCase();
 
+  /// What step 1 still lacks, and the field it belongs to; null when nothing.
+  ({String field, String message})? _stepOneProblem() {
+    if (_applicantKindClosed case final closed?) return (field: _fieldApplyingAs, message: closed);
+    final applyingAs = _applyingAsProblem;
+    if (_applyingAs == null && applyingAs != null) return (field: _fieldApplyingAs, message: applyingAs);
+    if (_occupancyProblem case final occupancy?) {
+      return (field: _occupancyGroup == null ? _fieldOccupancy : _fieldOccupancyOther, message: occupancy);
+    }
+    if (applyingAs != null) return (field: _fieldBusiness, message: applyingAs);
+    return null;
+  }
+
+  /// Refuses Continue for one field: its message under it, and the field
+  /// brought on screen (a typed one focused), so a phone user sees both.
+  void _failField(String field, String message) {
+    setState(() {
+      _error = message;
+      _fieldErrorState = (field: field, message: message);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _fieldKeys[field]?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(target, alignment: 0.2, duration: const Duration(milliseconds: 250));
+      }
+      if (field == _fieldOccupancyOther) _occupancyOtherFocus.requestFocus();
+    });
+  }
+
+  /// The message under [field], while the step's error is that field's; null otherwise.
+  String? _fieldError(String field) {
+    final state = _fieldErrorState;
+    return state != null && state.field == field && state.message == _error ? _error : null;
+  }
+
+  /// The step's error is shown under a field, so not above Continue.
+  bool get _fieldErrorShown {
+    final state = _fieldErrorState;
+    return state != null && state.message == _error;
+  }
+
   /// Which of the two reference fields to send, and with what. On a draft
   /// save an unchecked number is left out rather than saved, since the
   /// server refuses one that doesn't match — the draft may name none yet.
@@ -470,21 +525,16 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     // In the order step 1 asks them, like the portal: Applying as, the use or
     // character of occupancy (the server refuses to file a Building Permit or
     // Certificate of Occupancy without it, in these same words), the business.
-    if (_applicantKindClosed ??
-            (_applyingAs == null ? _applyingAsProblem : null) ??
-            _occupancyProblem ??
-            _applyingAsProblem
-        case final problem?) {
-      setState(() => _error = problem);
+    // Each under its own field (design review I14).
+    if (_stepOneProblem() case (:final field, :final message)) {
+      _failField(field, message);
       return;
     }
     final chosen = context.read<BusinessesService>().businesses.where(
       (b) => b.id == _businessId,
     );
     if (!_isResidential && chosen.isNotEmpty && !chosen.first.isActive) {
-      setState(
-        () => _error = 'This business is inactive. Reactivate it before applying for a permit.',
-      );
+      _failField(_fieldBusiness, 'This business is inactive. Reactivate it before applying for a permit.');
       return;
     }
     if (_needsPermitReference && _permitNumber.text.trim().isEmpty) {
@@ -877,8 +927,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   @override
   Widget build(BuildContext context) {
     return SoftPageScaffold(
-      // "New <permit type> application", the portal's (LGU, 4 Nov 2026).
-      title: wizardTitle(_permitType),
+      // "<Application type> <permit type> application", the portal's (LGU, 4 Nov
+      // 2026; design review I17: it read "New" on a renewal).
+      title: wizardTitle(_permitType, _applicationAction),
       actions: [
         if (_draftId != null && _step < 4)
           TextButton(
@@ -923,8 +974,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     child: Text(text, style: SoftType.fieldLabel.copyWith(fontSize: 14)),
   );
 
-  /// Errors sit right above the buttons that raised them, not below.
-  Widget _errorLine() => _error == null
+  /// Errors sit right above the buttons that raised them, not below; one a
+  /// step-1 field holds sits under that field instead.
+  Widget _errorLine() => _error == null || (_step == 1 && _fieldErrorShown)
       ? const SizedBox.shrink()
       : Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -995,10 +1047,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         ),
         const SizedBox(height: 18),
         _label('Applying as'),
+        // Who applies, not the building's use, which the occupancy below states (design review I6).
         SoftChoiceCard(
+          key: _fieldKeys[_fieldApplyingAs],
           icon: Icons.home_outlined,
           title: applyingAsLabel(applyingAsResidential),
-          subtitle: residentialClosed ?? 'For your own home or private property. No business needed.',
+          subtitle: residentialClosed ?? "For yourself or your family's property. No business needed.",
           selected: _isResidential,
           onTap: residentialClosed == null ? () => _chooseApplyingAs(applyingAsResidential) : null,
         ),
@@ -1010,6 +1064,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           selected: _applyingAs == applyingAsBusiness,
           onTap: businessClosed == null ? () => _chooseApplyingAs(applyingAsBusiness) : null,
         ),
+        if (_fieldError(_fieldApplyingAs) case final message?) ...[
+          const SizedBox(height: 8),
+          FieldErrorLine(message, key: const ValueKey('wizard-applying-as-error')),
+        ],
         // Who usually applies: guidance, never a rule.
         if (usualUseNote(_permitType, _applicantKinds) case final note?) ...[
           const SizedBox(height: 10),
@@ -1026,10 +1084,15 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         if (_applyingAs == applyingAsBusiness) ...[
           const SizedBox(height: 18),
           _label('Business'),
-          _businessPicker(businesses, active),
+          KeyedSubtree(key: _fieldKeys[_fieldBusiness], child: _businessPicker(businesses, active)),
+          // Under the card that says there is none to pick (the picker shows its own).
+          if (_fieldError(_fieldBusiness) case final message? when active.isEmpty) ...[
+            const SizedBox(height: 8),
+            FieldErrorLine(message),
+          ],
         ],
         const SizedBox(height: 18),
-        _label('Application Type'),
+        _label('Application type'),
         Row(
           children: [
             for (final (i, v) in const [
@@ -1124,6 +1187,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _label(occupancyFieldLabel),
+        KeyedSubtree(key: _fieldKeys[_fieldOccupancy], child: const SizedBox.shrink()),
         DropdownButtonFormField<String>(
           // A draft read back after this field was built shows its answer.
           key: ValueKey('wizard-occupancy-group-$_occupancyLoads'),
@@ -1132,7 +1196,11 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           isExpanded: true,
           borderRadius: BorderRadius.circular(SoftRadius.md),
           menuMaxHeight: 420,
-          decoration: const InputDecoration(helperText: occupancyHint, helperMaxLines: 3),
+          // Its message in place of the hint, right under it (design review I14).
+          decoration: fieldDecoration(
+            const InputDecoration(helperText: occupancyHint, helperMaxLines: 3),
+            error: _fieldError(_fieldOccupancy),
+          ),
           items: [
             for (final g in occupancyGroups)
               DropdownMenuItem(value: g.value, child: Text(g.label, overflow: TextOverflow.ellipsis)),
@@ -1145,16 +1213,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         if (_occupancyGroup == occupancyOtherValue) ...[
           const SizedBox(height: 16),
           _label(occupancyOtherLabel),
+          KeyedSubtree(key: _fieldKeys[_fieldOccupancyOther], child: const SizedBox.shrink()),
           TextField(
             key: const ValueKey('wizard-occupancy-other'),
             controller: _occupancyOther,
+            focusNode: _occupancyOtherFocus,
             style: SoftType.field,
             maxLength: occupancyOtherMax,
             textCapitalization: TextCapitalization.sentences,
             onChanged: (_) => clearError(),
-            decoration: const InputDecoration(
-              hintText: 'e.g. Chapel, water refilling station',
-              counterText: '',
+            decoration: fieldDecoration(
+              const InputDecoration(hintText: 'e.g. Chapel, water refilling station', counterText: ''),
+              error: _fieldError(_fieldOccupancyOther),
             ),
           ),
         ],
@@ -1208,8 +1278,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
             Text(
               businesses.loading
                   ? 'Loading your businesses…'
-                  : 'You have no active business yet. Register it here, or choose Residential / '
-                      'Private Individual if this is for your home or other private property.',
+                  : 'No businesses yet. Register a business, or apply as a private individual if this is for '
+                      "your home or your family's property.",
               style: SoftType.body.copyWith(color: SoftColors.ink),
             ),
             if (!businesses.loading) ...[
@@ -1240,6 +1310,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       hint: const Text('Select a business'),
       isExpanded: true,
       borderRadius: BorderRadius.circular(SoftRadius.md),
+      decoration: fieldDecoration(const InputDecoration(), error: _fieldError(_fieldBusiness)),
       items: active.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
       onChanged: (v) => setState(() {
         _businessId = v;
@@ -1389,6 +1460,14 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Text('Documents', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 6),
         Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
+        // Said once here, as the Requirements sheet does; a document needing
+        // paper carries its own chip (design review I13).
+        const SizedBox(height: 4),
+        Text(
+          onlineOnlyNote,
+          key: const ValueKey('wizard-online-note'),
+          style: SoftType.cellLabel.copyWith(color: SoftColors.ink),
+        ),
         if (_visibleRequirements.any(_isRequired)) ...[
           const SizedBox(height: 10),
           Text(
@@ -1426,9 +1505,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // "If applicable", not "Optional" (LGU, 4 Nov 2026), and
-            // whether paper copies are needed too (ebpco-api 071).
-            RequirementHeading(doc: doc, required: _isRequired(doc), attached: attached != null),
+            // Its group says Required or If applicable; a chip only where
+            // paper copies are needed too (ebpco-api 071, design review I13).
+            RequirementHeading(doc: doc, attached: attached != null),
             // A document that IS a form to sign on paper (the Unified
             // Building Permit Form, an ancillary form): the blank one,
             // to print, sign and upload here.
@@ -1535,7 +1614,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               row('Application type', _applicationAction),
               const Divider(height: 1, color: SoftColors.line),
               row('Applying as', applyingAsLabel(_applyingAs)),
-              // Residential names no business, and no owner: the citizen applies for their own property.
+              // A private individual names no business, and no owner: the citizen applies for their own property.
               if (!_isResidential) ...[
                 const Divider(height: 1, color: SoftColors.line),
                 row('Business', businessName ?? 'Not chosen'),
@@ -1737,10 +1816,48 @@ class _StepIndicator extends StatelessWidget {
   }
 }
 
-/// The wizard's title: "New `<permit type>` application", the portal's (LGU,
-/// 4 Nov 2026: it read the bare type, or "New Business Permit Application").
-String wizardTitle(String permitType) =>
-    'New ${permitType.trim().isEmpty ? 'permit' : permitType.trim()} application';
+/// The wizard's title: "`<application type>` `<permit type>` application",
+/// the portal's (LGU, 4 Nov 2026: it read the bare type, or "New Business
+/// Permit Application"; design review I17: it read "New" on a renewal).
+String wizardTitle(String permitType, [String applicationAction = 'New']) =>
+    '$applicationAction ${permitType.trim().isEmpty ? 'permit' : permitType.trim()} application';
+
+/// The step-1 fields that carry their own error message (design review I14).
+const _fieldApplyingAs = 'applyingAs';
+const _fieldOccupancy = 'occupancy';
+const _fieldOccupancyOther = 'occupancyOther';
+const _fieldBusiness = 'business';
+
+/// The light danger fill an invalid field gets, as on both portals (design review I14).
+const invalidFieldFill = Color(0xFFFEF5F5);
+
+/// [decoration] with [error] under the field in place of its hint, and the
+/// light danger fill, while there is one.
+InputDecoration fieldDecoration(InputDecoration decoration, {String? error}) => error == null
+    ? decoration
+    : decoration.copyWith(error: FieldErrorLine(error), fillColor: invalidFieldFill, filled: true);
+
+/// A field's own error: an alert mark and the message, under the field.
+class FieldErrorLine extends StatelessWidget {
+  const FieldErrorLine(this.message, {super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(Icons.error_outline_rounded, size: 15, color: AppTypography.error.color),
+        ),
+        const SizedBox(width: 5),
+        Expanded(child: Text(message, style: AppTypography.error)),
+      ],
+    );
+  }
+}
 
 /// The four steps, as the portal's stepper names them.
 const List<String> wizardStepLabels = ['Applicant & type', 'Details', 'Documents', 'Review & submit'];

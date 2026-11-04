@@ -42,6 +42,49 @@ built here for this version: the team releases it through the App Store / TestFl
 - A permit type that does not ask the use or character of occupancy no longer carries an earlier
   answer in its form. Notifications show the date and time like the rest of the app.
 
+Then aligned with the Citizen Portal's design-review fixes (4 Nov 2026, portal d830f3a), so the app
+and the portal say and show the same things. Some lines above are superseded by these:
+
+- **Where to pay.** One place, named the same everywhere: "Pay at the Municipal Treasurer's Office
+  (Cashier), Castilla Town Hall. Bring your Order of Payment." (the pay screen, the Order of
+  Payment, Help, the Payments list). The Onsite card reads "Pay at the Treasurer's Office, then tell
+  us here."; GCash reads "Pay online." with a "Test mode" chip, and its note says "test checkout"
+  once. "Mark as Paid" is "I Have Paid", asked once ("Not Yet" / "Yes, I Have Paid") with an
+  optional "OR number on your receipt", sent as the reference "OR <number>". The Office of the
+  Municipal Engineer is no longer named as a place to pay.
+- **Office names.** One registry, the backend's issuing-office names: "Office of the Building
+  Official (Municipal Engineering Office)", "Municipal Planning and Development Office (Zoning
+  Administrator)", "Bureau of Fire Protection — Castilla Fire Station", "Municipal Treasurer's
+  Office"; OBO / MPDO only as short forms. The Requirements sheet, document headers, Help and the
+  approval's fallback read it.
+- **Printed permit.** The portal's field map, label for label and in order: "Owner / Permittee
+  name", "Business name" (business applications only), "Contact number", the full "Address",
+  one "Location" row, "Application type", "Date applied", then the occupancy and scope; one
+  assessment table (fees, "Total amount due", "Balance", "Order of Payment No."); "No conditions
+  were recorded by the office."; "Signed copy available at the release desk" on an issued permit;
+  the approving office falls back to the issuing office; the QR caption names the address, then
+  the permit number whole; "Document Ref." is the application's reference, never an internal id.
+- **Receipt and Order of Payment.** Headed by the Municipal Treasurer's Office; "Collecting agency:
+  Municipal Treasurer's Office"; signed "Cashier" over "Municipal Treasurer's Office"; a GCash
+  receipt's footer says it was paid online through GCash. The Order of Payment prints its fee
+  schedule and its own number as the document reference. Sentence-case labels, dates as
+  "Nov 4, 2026" and "Nov 4, 2026 · 4:00 PM".
+- **Documents on a phone.** The permit, receipt and Order of Payment reflow to the screen and
+  scroll (one field to a line, nothing cut off or shrunk); a tablet keeps the A4 page. Placeholders
+  are upright grey, not pale italic.
+- **Private individual.** The stored 'residential' reads "Private individual" ("For yourself or your
+  family's property. No business needed."); the catalog chip reads "Private individuals only".
+- **Wizard.** The title follows the application type ("Renewal Building Permit application");
+  step 1's messages sit under their own field (Applying as, the occupancy, the business) with a
+  light red fill, and the field is brought on screen. The Documents step says "Upload everything
+  online. Paper copies only where marked." once; a "Hard copies: n" chip only on a document that
+  needs paper; no per-document tag (its group says Required or If applicable).
+- **Requirements sheet.** "Required (n)" and "If applicable (n)" sections, a business's own rows
+  under "Business applications only", the online-only line once, a leading "Only if applicable:"
+  left off descriptions, and Close / Start Application at the foot.
+- **Timeline.** Each step in the status pill's words ("Under Review"), a second line only where it
+  names the step ("Document check", "For approval"), back-to-back steps under one word shown once.
+
 ## 1.0.2 (build 3), 4 Nov 2026
 
 From the LGU's first test of the app (needs ebpco-api migration 071).

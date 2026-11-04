@@ -16,8 +16,15 @@ library;
 const applyingAsResidential = 'residential';
 const applyingAsBusiness = 'business';
 
+/// The label for the stored 'residential' (design review I6, 4 Nov 2026): who
+/// applies, not what the building is for. "Residential" sat next to "Use or
+/// character of occupancy: Group E — Business and Mercantile" on one permit,
+/// which then stated two uses. The stored value stays 'residential'; the
+/// portal's `PRIVATE_INDIVIDUAL`.
+const privateIndividualLabel = 'Private individual';
+
 /// What the wizard's "Applying as" starts on (owner, 4 Nov 2026: sign-up no
-/// longer asks): Residential for a citizen with no active business, once their
+/// longer asks): a private individual for a citizen with no active business, once their
 /// list has loaded; otherwise nothing, and the citizen picks. A list that did
 /// not load says nothing either way. From a business's own page the wizard has
 /// already chosen Business.
@@ -53,10 +60,10 @@ String? propertyOwnerNameOf(Map<String, dynamic> form) {
 }
 
 /// What is still unanswered in "Applying as", worded for the citizen, or null.
-/// Residential needs nothing more: the citizen applies for their own property.
+/// A private individual needs nothing more: the citizen applies for their own property.
 String? applyingAsProblem({required String? applyingAs, required String? businessId}) {
   if (applyingAs == null) {
-    return 'Please choose whether you are applying as Residential / Private Individual or as a Business.';
+    return 'Please choose whether you are applying as a private individual or as a business.';
   }
   if (applyingAs == applyingAsBusiness) {
     return businessId == null ? 'Please select a business.' : null;
@@ -100,7 +107,7 @@ Map<String, dynamic> applicationForm({
 
 /// What "Applying as" reads on a review or summary.
 String applyingAsLabel(String? applyingAs) => switch (applyingAs) {
-      applyingAsResidential => 'Residential / Private Individual',
+      applyingAsResidential => privateIndividualLabel,
       applyingAsBusiness => 'Business',
       _ => 'Not chosen',
     };

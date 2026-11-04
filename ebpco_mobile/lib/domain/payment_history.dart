@@ -5,6 +5,7 @@ library;
 
 import 'package:intl/intl.dart';
 
+import 'lgu_contact.dart';
 import 'models.dart';
 
 enum PaymentTone { verified, pending, danger, neutral }
@@ -39,24 +40,24 @@ PaymentAttemptView paymentAttemptView(PaymentEntry p) {
       return PaymentAttemptView(
         'Paid',
         PaymentTone.verified,
-        parts.isEmpty ? 'Confirmed by the Treasurer’s Office.' : parts.join(' · '),
+        parts.isEmpty ? 'Confirmed by the ${municipalTreasurer.short}.' : parts.join(' · '),
       );
     case 'Voided' || 'Reversed' || 'Refunded':
       return PaymentAttemptView(p.status, PaymentTone.neutral, p.exceptionReason ?? '');
     case 'Overdue':
       return const PaymentAttemptView('Overdue', PaymentTone.danger, 'The Order of Payment is past its due date.');
     default:
-      return const PaymentAttemptView(
+      return PaymentAttemptView(
         'Pending Verification',
         PaymentTone.pending,
-        'The Municipal Treasurer’s Office is checking this payment. Nothing more is needed from you.',
+        'The ${municipalTreasurer.name} is checking this payment. Nothing more is needed from you.',
       );
   }
 }
 
 /// How a payment was made, as the history line says it: the server's method
 /// name ('Bank Transfer', 'GCash' since ebpco-api 071), except onsite.
-String paymentMethodText(String method) => method == 'Onsite' ? 'Paid at the Treasurer’s Office' : method;
+String paymentMethodText(String method) => method == 'Onsite' ? 'Paid at the ${municipalTreasurer.short}' : method;
 
 /// Where an Order of Payment stands. Each order is in exactly one, so the
 /// filter counts add up to All.

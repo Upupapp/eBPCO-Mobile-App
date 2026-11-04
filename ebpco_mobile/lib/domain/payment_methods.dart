@@ -3,6 +3,7 @@
 /// same rules and words as the citizen portal's `payment-flow.page.ts`.
 library;
 
+import 'lgu_contact.dart';
 import 'models.dart';
 
 const paymentMethodBankTransfer = 'Bank Transfer';
@@ -68,12 +69,31 @@ String paymentMethodTitle(PaymentMethodOption m) => switch (m.method) {
       _ => m.label,
     };
 
-/// The line under the card's title.
+/// The line under the card's title, the portal's words (design review I2,
+/// I15): test mode is said by the card's chip and the checkout note, once
+/// each; every place to pay names the Treasurer's Office.
 String paymentMethodBlurb(PaymentMethodOption m) => switch (m.method) {
-      paymentMethodGcash => m.isTestMode ? 'Pay online. Test mode: no real money is charged.' : 'Pay online with GCash.',
+      paymentMethodGcash => 'Pay online.',
       paymentMethodBankTransfer => "Deposit to the Municipality's account, then upload the proof.",
-      _ => 'Pay at the Municipal Hall, then mark it paid here.',
+      _ => 'Pay at the ${municipalTreasurer.short}, then tell us here.',
     };
+
+/// What happens on GCash, in one note: the checkout charges the Order of
+/// Payment's amount, then the Cashier verifies it.
+String gcashCheckoutNote(String amount, {required bool testMode}) =>
+    'You go to the GCash ${testMode ? 'test checkout' : 'checkout'} to pay $amount; '
+    'the ${municipalTreasurer.cashierLabel} then verifies it and issues your official receipt.';
+
+/// The question asked before an onsite payment is sent.
+String onsiteConfirmQuestion(String amount) => 'Have you paid $amount at the ${municipalTreasurer.name}?';
+
+/// An onsite payment's reference: `OR <number>` when the citizen gave the
+/// Official Receipt's number, else a unique placeholder the Cashier replaces
+/// at verification (the portal's `onsiteReference`).
+String onsitePaymentReference(String orNumber, {DateTime? now}) {
+  final or = orNumber.trim();
+  return or.isNotEmpty ? 'OR $or' : 'ONSITE-${(now ?? DateTime.now()).millisecondsSinceEpoch}';
+}
 
 /// A GCash checkout just opened (`POST /applications/{id}/payments/gcash`):
 /// the page to pay on, for the Order of Payment's amount.

@@ -62,11 +62,11 @@ void main() {
   test('the chip on each permit type', () {
     expect(applicantKindsChip(bothApplicantKinds), 'Homes & businesses');
     expect(applicantKindsChip([applyingAsBusiness]), 'Business only');
-    expect(applicantKindsChip([applyingAsResidential]), 'Residential only');
+    expect(applicantKindsChip([applyingAsResidential]), 'Private individuals only');
   });
 
   test('who usually applies, only for the four types where it helps', () {
-    expect(usualUseNote('Sign Permit'), 'Usually a business sign; a home-based practice can apply as Residential.');
+    expect(usualUseNote('Sign Permit'), 'Usually a business sign; a home-based practice can apply as a private individual.');
     expect(usualUseNote('Fencing Permit'), 'Usually for homes.');
     expect(usualUseNote('Interior Design Permit'), 'Usually shop and office fit-outs.');
     expect(usualUseNote('Certificate of Occupancy'), 'After the building work is done, before the building is used.');

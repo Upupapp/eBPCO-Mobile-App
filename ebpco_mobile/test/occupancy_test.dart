@@ -144,7 +144,7 @@ void main() {
         expect(find.text("Select the building's use"), findsWidgets);
         final applyingAs = tester.getTopLeft(find.text('Applying as')).dy;
         final occupancy = tester.getTopLeft(find.text(occupancyFieldLabel)).dy;
-        final applicationType = tester.getTopLeft(find.text('Application Type')).dy;
+        final applicationType = tester.getTopLeft(find.text('Application type')).dy;
         expect(occupancy, greaterThan(applyingAs));
         expect(occupancy, lessThan(applicationType));
       });
@@ -161,7 +161,7 @@ void main() {
     testWidgets('Continue is refused until it is chosen', (tester) async {
       await tester.pumpWidget(_wizard('Building Permit'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Residential / Private Individual'));
+      await tester.tap(find.text('Private individual'));
       await tester.pumpAndSettle();
 
       await _tapContinue(tester);
@@ -173,7 +173,7 @@ void main() {
     testWidgets('Others (specify) asks for the use, and refuses one too short', (tester) async {
       await tester.pumpWidget(_wizard('Certificate of Occupancy'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Residential / Private Individual'));
+      await tester.tap(find.text('Private individual'));
       await tester.pumpAndSettle();
       expect(find.text(occupancyOtherLabel), findsNothing);
 
@@ -189,7 +189,7 @@ void main() {
     testWidgets('choosing a group shows it as chosen and clears the refusal', (tester) async {
       await tester.pumpWidget(_wizard('Building Permit'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Residential / Private Individual'));
+      await tester.tap(find.text('Private individual'));
       await tester.pumpAndSettle();
       await _tapContinue(tester);
       expect(find.text('Choose the use or character of occupancy.'), findsOneWidget);

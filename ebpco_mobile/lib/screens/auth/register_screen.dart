@@ -9,7 +9,6 @@ import '../../domain/password_policy.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/soft_widget.dart';
-import '../../widgets/choice_card.dart';
 import '../../widgets/password_checklist.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';

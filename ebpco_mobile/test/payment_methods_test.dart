@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:ebpco_mobile/core/api/problem.dart';
+import 'package:ebpco_mobile/domain/lgu_contact.dart';
 import 'package:ebpco_mobile/domain/models.dart';
 import 'package:ebpco_mobile/domain/payment_history.dart';
 import 'package:ebpco_mobile/domain/payment_methods.dart';
@@ -84,12 +85,23 @@ void main() {
       expect(defaultPaymentMethod(offered), 'GCash');
     });
 
-    test('the cards\' words', () {
+    test('the cards\' words, the portal\'s: every place to pay is the Treasurer\'s Office', () {
       expect(paymentMethodTitle(_gcash), 'GCash');
-      expect(paymentMethodBlurb(_gcash), 'Pay online. Test mode: no real money is charged.');
-      expect(paymentMethodBlurb(const PaymentMethodOption(method: 'GCash', label: 'GCash')), 'Pay online with GCash.');
+      expect(paymentMethodBlurb(_gcash), 'Pay online.');
+      expect(paymentMethodBlurb(const PaymentMethodOption(method: 'GCash', label: 'GCash')), 'Pay online.');
       expect(paymentMethodTitle(_onsite), 'Onsite Payment');
-      expect(paymentMethodBlurb(_onsite), 'Pay at the Municipal Hall, then mark it paid here.');
+      expect(paymentMethodBlurb(_onsite), "Pay at the Treasurer's Office, then tell us here.");
+      expect(onsitePaymentWhere,
+          "Pay at the Municipal Treasurer's Office (Cashier), Castilla Town Hall. Bring your Order of Payment.");
+      expect(onsiteConfirmQuestion('₱6,820.50'), "Have you paid ₱6,820.50 at the Municipal Treasurer's Office?");
+      expect(gcashCheckoutNote('₱6,820.50', testMode: true),
+          'You go to the GCash test checkout to pay ₱6,820.50; the Cashier then verifies it and issues your official receipt.');
+      expect(gcashCheckoutNote('₱6,820.50', testMode: false), startsWith('You go to the GCash checkout to pay'));
+    });
+
+    test('an onsite payment\'s reference: the OR number when given, else a placeholder the Cashier replaces', () {
+      expect(onsitePaymentReference(' 1234567 '), 'OR 1234567');
+      expect(onsitePaymentReference('', now: DateTime.fromMillisecondsSinceEpoch(1762243200000)), 'ONSITE-1762243200000');
     });
 
     test('read from the server\'s bare array', () {
@@ -114,7 +126,7 @@ void main() {
     test('the payment history names GCash like any other method', () {
       expect(paymentMethodText('GCash'), 'GCash');
       expect(paymentMethodText('Bank Transfer'), 'Bank Transfer');
-      expect(paymentMethodText('Onsite'), 'Paid at the Treasurer’s Office');
+      expect(paymentMethodText('Onsite'), "Paid at the Treasurer's Office");
     });
   });
 
@@ -159,12 +171,36 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('GCash'), findsOneWidget);
-      expect(find.text('Pay online. Test mode: no real money is charged.'), findsOneWidget);
+      expect(find.text('Pay online.'), findsOneWidget);
+      // Test mode said once on the card, by its chip.
+      expect(find.text('Test mode'), findsOneWidget);
       expect(find.text('Onsite Payment'), findsOneWidget);
+      expect(find.text("Pay at the Treasurer's Office, then tell us here."), findsOneWidget);
       expect(find.text('Bank Transfer'), findsNothing);
-      // Onsite stays the first choice, as before.
-      expect(find.text('Mark as Paid'), findsOneWidget);
+      expect(find.text('Total amount due'), findsOneWidget);
+      // Onsite stays the first choice, as before, and says where to pay.
+      expect(find.text(onsitePaymentWhere), findsOneWidget);
+      expect(find.text('I Have Paid'), findsOneWidget);
       expect(find.text('Pay with GCash'), findsNothing);
+    });
+
+    testWidgets('I Have Paid asks first, at the Treasurer\'s Office, with the OR number optional', (tester) async {
+      _tallScreen(tester);
+      await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('I Have Paid'));
+      await tester.pumpAndSettle();
+      expect(find.text("Have you paid ₱6,820.50 at the Municipal Treasurer's Office?"), findsOneWidget);
+      expect(find.textContaining('Tell us only once you have paid and have your Official Receipt.'), findsOneWidget);
+      expect(find.text('OR number on your receipt (optional)'), findsOneWidget);
+      expect(find.text("Leave it blank if you don't have it. The Cashier records it when verifying."), findsOneWidget);
+      expect(find.text('Yes, I Have Paid'), findsOneWidget);
+
+      await tester.tap(find.text('Not Yet'));
+      await tester.pumpAndSettle();
+      expect(find.text('OR number on your receipt (optional)'), findsNothing);
+      expect(calls.where((c) => c.startsWith('POST')), isEmpty);
     });
 
     testWidgets('methods that cannot be read leave Onsite, as before', (tester) async {
@@ -173,8 +209,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('GCash'), findsNothing);
-      expect(find.textContaining('Pay onsite at the Municipal Hall'), findsOneWidget);
-      expect(find.text('Mark as Paid'), findsOneWidget);
+      expect(find.text(onsitePaymentWhere), findsOneWidget);
+      expect(find.textContaining('Municipal Hall'), findsNothing);
+      expect(find.text('I Have Paid'), findsOneWidget);
     });
 
     testWidgets('Pay with GCash opens the checkout in the browser; back in the app it shows Payment Submitted', (tester) async {
@@ -184,7 +221,12 @@ void main() {
 
       await tester.tap(find.text('GCash'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('You go to the checkout page to pay'), findsOneWidget);
+      expect(
+        find.text('You go to the GCash test checkout to pay ₱6,820.50; the Cashier then verifies it and issues your '
+            'official receipt.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('no real money'), findsNothing);
       await tester.ensureVisible(find.text('Pay with GCash'));
       await tester.tap(find.text('Pay with GCash'));
       await tester.pumpAndSettle();

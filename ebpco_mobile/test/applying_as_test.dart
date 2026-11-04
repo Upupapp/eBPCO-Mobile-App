@@ -30,7 +30,8 @@ void main() {
     test('the server says so', () {
       final app = _app(applyingAs: 'residential');
       expect(app.isResidential, isTrue);
-      expect(app.applicantLabel, 'Residential');
+      expect(app.applicantLabel, 'Private individual');
+      expect(app.businessNameOnDocument, isNull);
     });
 
     test('an older server: the form, else a business means Business', () {
@@ -78,7 +79,7 @@ void main() {
         applyingAsProblem(applyingAs: applyingAs, businessId: businessId);
 
     test('needs a choice', () {
-      expect(problem(), contains('Residential / Private Individual'));
+      expect(problem(), 'Please choose whether you are applying as a private individual or as a business.');
     });
 
     test('Business needs a business', () {
@@ -143,7 +144,7 @@ void main() {
   });
 
   test('the review reads in plain words', () {
-    expect(applyingAsLabel(applyingAsResidential), 'Residential / Private Individual');
+    expect(applyingAsLabel(applyingAsResidential), 'Private individual');
     expect(applyingAsLabel(applyingAsBusiness), 'Business');
     expect(applyingAsLabel(null), 'Not chosen');
   });

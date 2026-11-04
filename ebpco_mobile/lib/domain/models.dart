@@ -42,12 +42,17 @@ class OrderOfPayment {
   /// in centavos — the Order of Payment's own breakdown.
   final Map<String, int> fees;
 
+  /// The fee schedule the office assessed by, printed on the Order of
+  /// Payment as the portal prints it; null when the server sent none.
+  final String? feeScheduleVersion;
+
   const OrderOfPayment({
     required this.number,
     required this.assessedAt,
     required this.dueDate,
     required this.totalCentavos,
     this.fees = const {},
+    this.feeScheduleVersion,
   });
 
   factory OrderOfPayment.fromJson(Map<String, dynamic> json) => OrderOfPayment(
@@ -58,6 +63,10 @@ class OrderOfPayment {
         fees: {
           for (final e in ((json['fees'] as Map<String, dynamic>?) ?? const {}).entries)
             if (e.value is int) e.key: e.value as int,
+        },
+        feeScheduleVersion: switch (json['feeScheduleVersion']) {
+          final String version when version.trim().isNotEmpty => version.trim(),
+          _ => null,
         },
       );
 }
@@ -122,8 +131,18 @@ class ApplicationSummary {
   /// Filed for the citizen's home or other private property, not a business.
   bool get isResidential => applyingAs == applyingAsResidential;
 
-  /// What to show where the business would be: its name, or "Residential".
-  String? get applicantLabel => isResidential ? 'Residential' : businessName;
+  /// Who it is for, under "Applying as": the business's name, or "Private
+  /// individual" (design review I6) — the portal's `applicantLabel`.
+  String? get applicantLabel => isResidential ? privateIndividualLabel : businessName;
+
+  /// The business's name on a printed document, or null for a private
+  /// individual's application: no "Business name" row then, so the occupancy
+  /// is the only statement of use (design review I6).
+  String? get businessNameOnDocument {
+    if (isResidential) return null;
+    final name = businessName?.trim() ?? '';
+    return name.isEmpty ? null : name;
+  }
 
   /// The property owner a residential application filed before the 2026-10-28
   /// ruling named, when the applicant was not the owner. History only.
@@ -296,6 +315,10 @@ class RequirementDoc {
   /// Where or why, under the count (the BFP's: where to submit it); null when there is none.
   final String? hardCopyNote;
 
+  /// 'business' on a row asked only of a business application (the
+  /// signatory's authority, ebpco-api 068); null on a row for everyone.
+  final String? applicantKind;
+
   const RequirementDoc({
     required this.code,
     required this.label,
@@ -305,7 +328,12 @@ class RequirementDoc {
     required this.status,
     this.hardCopies = 0,
     this.hardCopyNote,
+    this.applicantKind,
   });
+
+  /// Asked only of a business application: the Requirements sheet lists it
+  /// under "Business applications only".
+  bool get isBusinessOnly => applicantKind == 'business';
 
   bool get isProvided => status == 'provided';
 
@@ -319,15 +347,22 @@ class RequirementDoc {
         _ => null,
       };
 
+  static String? _applicantKindOf(Map<String, dynamic> json) => switch (json['applicantKind']) {
+        'residential' => 'residential',
+        'business' => 'business',
+        _ => null,
+      };
+
   factory RequirementDoc.fromJson(Map<String, dynamic> json) => RequirementDoc(
         code: json['code'] as String,
         label: json['label'] as String,
-        description: json['description'] as String? ?? '',
+        description: withoutIfApplicablePrefix(json['description'] as String?),
         required: json['required'] as bool? ?? true,
         documentIds: (json['documentIds'] as List<dynamic>?)?.cast<String>() ?? const [],
         status: json['status'] as String? ?? 'not-provided',
         hardCopies: _hardCopiesOf(json),
         hardCopyNote: _hardCopyNoteOf(json),
+        applicantKind: _applicantKindOf(json),
       );
 
   /// From the pre-filing catalog (`GET /requirements/{permitType}`), which
@@ -336,18 +371,36 @@ class RequirementDoc {
   factory RequirementDoc.fromCatalogJson(Map<String, dynamic> json) => RequirementDoc(
         code: json['code'] as String,
         label: json['label'] as String,
-        description: json['description'] as String? ?? '',
+        description: withoutIfApplicablePrefix(json['description'] as String?),
         required: json['required'] as bool? ?? true,
         documentIds: const [],
         status: 'not-provided',
         hardCopies: _hardCopiesOf(json),
         hardCopyNote: _hardCopyNoteOf(json),
+        applicantKind: _applicantKindOf(json),
       );
 }
 
-/// The line under a document saying whether paper copies are needed too
-/// (ebpco-api 071), the portal's `hardCopiesText`.
-String hardCopiesText(int hardCopies) => hardCopies > 0 ? 'Hard copies: $hardCopies' : 'Online only, no hard copy';
+/// The one line above a document list that says how documents are sent;
+/// each one needing paper says so itself — the portal's `ONLINE_ONLY_NOTE`.
+const onlineOnlyNote = 'Upload everything online. Paper copies only where marked.';
+
+/// The chip on a document that needs paper copies ("Hard copies: 1"; ebpco-api
+/// 071); null for one sent online only. "Online only" is said once above a
+/// list ([onlineOnlyNote]), not on every row: 21 rows of "Online only, no hard
+/// copy" buried the one real paper requirement (design review I13).
+String? hardCopiesText(int hardCopies) => hardCopies > 0 ? 'Hard copies: $hardCopies' : null;
+
+/// A description without the "Only if applicable:" it opens with on some
+/// server rows: the section already says If applicable, and the two read as
+/// the same words twice (design review I13) — the portal's
+/// `withoutIfApplicablePrefix`. Empty for none.
+String withoutIfApplicablePrefix(String? description) {
+  final text = (description ?? '').trim();
+  final rest = text.replaceFirst(RegExp(r'^only if applicable\s*[:—-]\s*', caseSensitive: false), '');
+  if (rest == text || rest.isEmpty) return rest;
+  return rest[0].toUpperCase() + rest.substring(1);
+}
 
 /// The tag on a document: needed before submitting, or only when the project
 /// includes that work ("If applicable", not "Optional": LGU, 4 Nov 2026).

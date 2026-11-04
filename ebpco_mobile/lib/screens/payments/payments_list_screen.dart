@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../domain/assessment_view.dart';
 import '../../domain/models.dart';
 import '../../domain/payment_history.dart';
 import '../../services/applications_service.dart';
@@ -14,8 +15,8 @@ import '../../widgets/soft_page.dart';
 import 'payment_flow_screen.dart';
 import 'payment_receipt_screen.dart';
 
-final _pesos = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
-String pesos(int centavos) => _pesos.format(centavos / 100);
+// Every screen that shows money reads it from here, as before; the formatter lives with the assessment.
+export '../../domain/assessment_view.dart' show pesos;
 
 String _day(String iso) {
   final when = DateTime.tryParse(iso)?.toLocal();

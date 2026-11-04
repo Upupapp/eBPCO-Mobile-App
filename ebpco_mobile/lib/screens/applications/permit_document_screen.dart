@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../core/config/app_config.dart';
 import '../../domain/models.dart';
-import '../../domain/occupancy.dart';
-import '../../domain/property_address.dart';
-import '../../domain/reviewing_office.dart';
+import '../../domain/permit_fields.dart';
 import '../../services/businesses_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/paper_document.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
-import '../payments/payments_list_screen.dart';
 
 /// The citizen portal's `permit-document.page.ts`, ported: the same printable
-/// document, section for section, on the same paper layout — real values
-/// only (`GET /applications/{id}` and `GET /applications/{id}/permit`), each
+/// document, section for section and label for label (the one field map,
+/// `domain/permit_fields.dart`), on the same paper layout — real values only
+/// (`GET /applications/{id}` and `GET /applications/{id}/permit`), each
 /// missing one labelled as missing rather than invented, and a permanent
-/// "SAMPLE — NOT AN OFFICIAL PERMIT" watermark, as on the portal.
+/// "SAMPLE — NOT AN OFFICIAL PERMIT" watermark, as on the portal. On a phone
+/// the page reflows and scrolls ([PaperDocumentViewer]).
 class PermitDocumentScreen extends StatefulWidget {
   final String applicationId;
   final String? applicationReference;
@@ -28,40 +26,6 @@ class PermitDocumentScreen extends StatefulWidget {
 
   @override
   State<PermitDocumentScreen> createState() => _PermitDocumentScreenState();
-}
-
-String _formatDate(String iso) {
-  final parsed = DateTime.tryParse(iso);
-  return parsed == null ? iso : DateFormat('MMMM d, y').format(parsed.toLocal());
-}
-
-/// What a Certificate of Occupancy says under "Valid Until": it has no fixed
-/// term (the backend fills an expiry for every other type, 12 or 6 months).
-const String occupancyNoExpiry = "No fixed expiry (valid while the building's use and occupancy stay the same)";
-
-/// "Valid Until" on the printed permit: the date the office recorded at issue;
-/// for a Certificate of Occupancy with none, that it does not expire; for any
-/// other type with none (an old permit), a neutral "Not recorded".
-String permitValidUntil({required bool issued, required String permitType, String? expiresOn}) {
-  if (!issued) return 'Not yet assigned';
-  final date = expiresOn?.trim() ?? '';
-  if (date.isNotEmpty) return _formatDate(date);
-  return permitType == 'Certificate of Occupancy' ? occupancyNoExpiry : 'Not recorded';
-}
-
-/// The Approval block's name and position: who approved it and for which
-/// office, as recorded at issue (QA TC-04, TC-18); "Not recorded" for either
-/// on an old permit that has none. Before issue: not assigned yet, under the
-/// reviewing [office].
-({String name, String position}) permitApproval({
-  required bool issued,
-  String? approvingOfficial,
-  String? approvingOffice,
-  required String office,
-}) {
-  if (!issued) return (name: 'Not yet assigned', position: office);
-  String recorded(String? value) => (value?.trim().isEmpty ?? true) ? 'Not recorded' : value!.trim();
-  return (name: recorded(approvingOfficial), position: recorded(approvingOffice));
 }
 
 class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
@@ -110,122 +74,96 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final app = _app;
     return SoftPageScaffold(
       title: 'Your Permit',
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _app == null
+          : app == null
               ? ListView(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                   children: [SoftEmptyCard(_error ?? "We couldn't find that application.")],
                 )
-              : _document(_app!, _permit),
+              : PermitDocumentView(content: _content(app)),
     );
   }
 
-  Widget _document(ApplicationSummary app, PermitInfo? permit) {
-    final profile = context.watch<SessionService>().profile;
+  PermitDocumentContent _content(ApplicationSummary app) {
     final businesses = context.watch<BusinessesService>().businesses.where((b) => b.id == app.businessId);
-    final business = businesses.isEmpty ? null : businesses.first;
-    final office = reviewingOfficeFor(app.permitType);
-    final order = app.orderOfPayment;
-    final issued = permit != null;
-    final verificationUrl =
-        issued ? '${AppConfig.userPortalBaseUrl}/verify/${Uri.encodeComponent(permit.permitNumber)}' : null;
-    final generatedOn = DateFormat('MMMM d, y h:mm a').format(DateTime.now());
-    final approval = permitApproval(
-      issued: issued,
-      approvingOfficial: permit?.approvingOfficial,
-      approvingOffice: permit?.approvingOffice,
-      office: office,
+    return permitDocumentContent(
+      app: app,
+      permit: _permit,
+      // The citizen's account, as both portals read it (the record carries no owner).
+      owner: context.watch<SessionService>().profile,
+      business: businesses.isEmpty ? null : businesses.first,
+      verifyBaseUrl: AppConfig.userPortalBaseUrl,
     );
+  }
+}
 
+/// The printed permit, laid out from [content]: the sections in the field
+/// map's order, then the approval, the QR code and the footer.
+class PermitDocumentView extends StatelessWidget {
+  const PermitDocumentView({super.key, required this.content});
+
+  final PermitDocumentContent content;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = content;
+    final assessment = c.assessment;
     return PaperDocumentViewer(
       page: PaperPage(
         watermark: 'Sample — not an official permit',
         children: [
-          PaperHeader(office: office),
-          PaperTitle(title: app.permitType),
-          PaperNumberBlock(
-            label: 'Permit No.',
-            value: permit?.permitNumber ?? 'Not yet assigned',
-            pending: !issued,
-            facts: [
-              ('Application No.', app.displayReference),
-              ('Date Issued', issued ? _formatDate(permit.issuedDate) : 'Not yet assigned'),
-              // As the office recorded it when issuing (QA TC-04); a Certificate
-              // of Occupancy has no fixed term.
-              (
-                'Valid Until',
-                permitValidUntil(issued: issued, permitType: app.permitType, expiresOn: permit?.expiresOn),
-              ),
-            ],
-          ),
+          PaperHeader(office: c.office),
+          PaperTitle(title: c.title),
+          PaperNumberBlock(label: PermitLabels.permitNo, value: c.number, pending: c.numberPending, facts: c.facts),
           // "Owner / Applicant", as box 1 of the LGU's Unified Application Form
           // reads — see the portal page's own note on why it is not "Citizen".
+          PaperSection(title: permitSections[0], child: PaperFields(rows: c.owner, wide: permitWideLabels)),
+          // Where the project is, printed once.
+          PaperSection(title: permitSections[1], child: PaperFields(rows: c.property, wide: permitWideLabels)),
+          PaperSection(title: permitSections[2], child: PaperFields(rows: c.project, wide: permitWideLabels)),
           PaperSection(
-            title: 'Owner / Applicant',
-            child: PaperFields(rows: [
-              ('Owner / Permittee Name', profile?.fullName ?? 'Not on file'),
-              ('Business / Project', (app.businessName ?? '').isEmpty ? 'Not provided' : app.businessName!),
-              ('Contact Number', profile?.mobileNumber ?? 'Not on file'),
-              ('Address', profile?.street ?? 'Not on file'),
-            ]),
-          ),
-          PaperSection(
-            title: 'Property',
-            // The application's own property address; the business's only
-            // when it gave none (a Residential one names no business).
-            child: PaperFields(rows: propertyRows(location: app.location, business: business)),
-          ),
-          PaperSection(
-            title: 'Project',
-            child: PaperFields(rows: [
-              ('Transaction', app.applicationAction),
-              // As filed (ebpco-api 071), the portal's printed line; left out when absent.
-              if (occupancyLabelOf(app.form) case final use?) (occupancyFieldLabel, use),
-              ('Date Applied', app.dateSubmitted != null ? _formatDate(app.dateSubmitted!) : 'Pending'),
-              if (permit?.scope != null) ('Scope', permit!.scope!),
-            ]),
-          ),
-          PaperSection(
-            title: 'Assessment / Payment',
-            child: order == null
+            title: permitSections[3],
+            child: assessment == null
                 ? const PaperNote('No assessment has been issued yet for this application.', placeholder: true)
-                : PaperTable(rows: [
-                    (['Total Amount Due', pesos(order.totalCentavos)], true),
-                    (['Payment Status', app.paymentStatus], false),
-                  ]),
-          ),
-          // The office's conditions, every one, verbatim — never summarised.
-          PaperSection(
-            title: 'Conditions',
-            child: issued && permit.conditions.isNotEmpty
-                ? PaperNumberedList(items: permit.conditions)
-                : const PaperNote(
-                    'The Municipality has not supplied the conditions for this permit. This does not mean there are '
-                    'none — ask the Office of the Municipal Engineer before relying on this document.',
-                    placeholder: true,
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      PaperTable(
+                        header: const [PermitLabels.fee, PermitLabels.amount],
+                        rows: [
+                          for (final (name, amount) in assessment.fees) ([name, amount], false),
+                          ([PermitLabels.totalAmountDue, assessment.total], true),
+                          ([PermitLabels.balance, assessment.balance], false),
+                        ],
+                      ),
+                      PaperNote('${PermitLabels.orderOfPaymentNo}: ${assessment.orderNumber}'),
+                    ],
                   ),
           ),
+          // The office's conditions, every one, verbatim — never summarised;
+          // none recorded is stated as a fact, in normal ink.
+          PaperSection(
+            title: permitSections[4],
+            child: c.conditions.isNotEmpty
+                ? PaperNumberedList(items: c.conditions)
+                : const PaperNote(noConditionsNote, fact: true),
+          ),
           PaperSignature(
-            heading: 'Approval',
-            pendingLabel: 'Pending Authorized Signature',
-            // Who approved it, as recorded at issue (QA TC-04, TC-18).
-            name: approval.name,
-            position: approval.position,
+            heading: permitSections[5],
+            pendingLabel: c.approvalNote,
+            name: c.approvalName,
+            position: c.approvalPosition,
           ),
           PaperQr(
-            url: verificationUrl,
+            url: c.verificationUrl,
+            number: c.permitNumber,
             unavailable: 'QR verification not yet available — this permit has not been issued.',
           ),
-          PaperFooter(lines: [
-            issued
-                ? 'This is a system-generated document issued by the Municipality of Castilla, Sorsogon.'
-                : 'This is a system-generated preview produced by the eBPCO portal. It is not an issued permit and has '
-                    'no legal effect. Only the Municipality of Castilla, Sorsogon issues permits.',
-            'Document Ref. ${app.id} · Generated $generatedOn · Page 1 of 1',
-          ]),
+          PaperFooter(lines: c.footer),
         ],
       ),
     );

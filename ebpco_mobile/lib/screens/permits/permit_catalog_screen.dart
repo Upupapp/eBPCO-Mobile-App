@@ -58,11 +58,22 @@ class _PermitCatalogScreenState extends State<PermitCatalogScreen> {
         ),
       );
 
+  /// Whose checklist the sheet reads: a business's for a type a business may
+  /// apply for, so its own rows show under "Business applications only"; a
+  /// private individual's for a type open to them alone (the portal's
+  /// LiveRequirementsStore). From a business's own "Apply for a permit", the
+  /// business's.
+  String _sheetApplyingAs(String type) {
+    final kinds = _applicantKinds;
+    if (widget.businessId != null || kinds == null) return applyingAsBusiness;
+    return applicantKindsFor(kinds, type).contains(applyingAsBusiness) ? applyingAsBusiness : applyingAsResidential;
+  }
+
   Future<void> _requirements(String type) async {
     final action = await showRequirementsSheet(
       context,
       permitType: type,
-      load: widget.requirements ?? liveRequirements(applyingAs: widget.businessId == null ? null : applyingAsBusiness),
+      load: widget.requirements ?? liveRequirements(applyingAs: _sheetApplyingAs(type)),
     );
     if (action != null && mounted) _start(type, applicationAction: action);
   }

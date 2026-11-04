@@ -5,13 +5,15 @@ import 'package:ebpco_mobile/domain/models.dart';
 import 'package:ebpco_mobile/widgets/requirement_heading.dart';
 
 /// The Documents step (LGU, 4 Nov 2026; ebpco-api 071): "If applicable"
-/// instead of "Optional", and per document whether paper copies are needed
-/// too. The same words as the citizen portal's wizard and requirements window.
+/// instead of "Optional", said by the group; "online only" said once above
+/// the list, and a "Hard copies: n" chip only on a document that needs paper
+/// (design review I13). The same words as the citizen portal's wizard and
+/// Requirements window.
 const _bfpNote = 'The BFP requires a hard copy. Submit it at the Castilla Fire Station.';
 
-Future<void> _pump(WidgetTester tester, RequirementDoc doc, {required bool required}) => tester.pumpWidget(
+Future<void> _pump(WidgetTester tester, RequirementDoc doc) => tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: RequirementHeading(doc: doc, required: required, attached: false)),
+        home: Scaffold(body: RequirementHeading(doc: doc, attached: false)),
       ),
     );
 
@@ -41,17 +43,37 @@ void main() {
       expect(odd.hardCopyNote, isNull);
     });
 
-    test('the words', () {
-      expect(hardCopiesText(0), 'Online only, no hard copy');
+    test('the words: online only once above the list, a chip only where paper is needed', () {
+      expect(onlineOnlyNote, 'Upload everything online. Paper copies only where marked.');
+      expect(hardCopiesText(0), isNull);
       expect(hardCopiesText(1), 'Hard copies: 1');
       expect(hardCopiesText(3), 'Hard copies: 3');
       expect(requirementTag(required: true), 'Required');
       expect(requirementTag(required: false), 'If applicable');
     });
+
+    test('a leading "Only if applicable:" is left off: the section already says it', () {
+      expect(withoutIfApplicablePrefix('Only if applicable: when the added load needs structural computations.'),
+          'When the added load needs structural computations.');
+      expect(withoutIfApplicablePrefix('only if applicable — for a hotel'), 'For a hotel');
+      expect(withoutIfApplicablePrefix('Issued by DPWH. Only if applicable: along a national road.'),
+          'Issued by DPWH. Only if applicable: along a national road.');
+      expect(withoutIfApplicablePrefix(null), '');
+      final doc = RequirementDoc.fromCatalogJson(
+          {'code': 'x', 'label': 'X', 'description': 'Only if applicable: for structures over two storeys.'});
+      expect(doc.description, 'For structures over two storeys.');
+    });
+
+    test('a row for business applications only says so; one for everyone does not', () {
+      expect(RequirementDoc.fromCatalogJson({'code': 'auth', 'label': 'Authority', 'applicantKind': 'business'}).isBusinessOnly,
+          isTrue);
+      expect(RequirementDoc.fromJson({'code': 'x', 'label': 'X', 'applicantKind': 'robot'}).applicantKind, isNull);
+      expect(RequirementDoc.fromCatalogJson({'code': 'x', 'label': 'X'}).isBusinessOnly, isFalse);
+    });
   });
 
   group('one document\'s card', () {
-    testWidgets('a document needed only for some projects says If applicable, never Optional', (tester) async {
+    testWidgets('a document sent online only carries no paper line and no tag of its own', (tester) async {
       await _pump(
         tester,
         RequirementDoc.fromCatalogJson({
@@ -63,15 +85,14 @@ void main() {
           'hardCopies': 0,
           'hardCopyNote': null,
         }),
-        required: false,
       );
 
       expect(find.text('Road Clearance'), findsOneWidget);
-      expect(find.text('If applicable'), findsOneWidget);
       expect(find.text('Optional'), findsNothing);
       expect(find.text('Required'), findsNothing);
       expect(find.textContaining('national or provincial road'), findsOneWidget);
-      expect(find.text('Online only, no hard copy'), findsOneWidget);
+      expect(find.textContaining('Online only'), findsNothing);
+      expect(find.textContaining('Hard copies'), findsNothing);
     });
 
     testWidgets('a BFP document says how many paper copies, with the note under it', (tester) async {
@@ -85,13 +106,11 @@ void main() {
           'hardCopies': 1,
           'hardCopyNote': _bfpNote,
         }),
-        required: true,
       );
 
-      expect(find.text('Required'), findsOneWidget);
       expect(find.text('Hard copies: 1'), findsOneWidget);
       expect(find.text(_bfpNote), findsOneWidget);
-      expect(find.text('Online only, no hard copy'), findsNothing);
+      expect(find.textContaining('Online only'), findsNothing);
       // The note sits under the count.
       expect(tester.getTopLeft(find.text(_bfpNote)).dy, greaterThan(tester.getTopLeft(find.text('Hard copies: 1')).dy));
     });

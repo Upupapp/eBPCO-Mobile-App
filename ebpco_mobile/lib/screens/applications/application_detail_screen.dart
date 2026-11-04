@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../domain/assessment_view.dart';
+import '../../domain/dates.dart';
 import '../../domain/models.dart';
 import '../../domain/occupancy.dart';
 import '../../domain/permit_delivery.dart';
@@ -27,7 +29,6 @@ import '../../widgets/status_badge.dart';
 import '../documents/document_viewer_screen.dart';
 import '../payments/order_of_payment_screen.dart';
 import '../payments/payment_flow_screen.dart';
-import '../payments/payments_list_screen.dart';
 import '../permits/application_wizard_screen.dart';
 import 'permit_delivery_card.dart';
 import 'permit_document_screen.dart';
@@ -319,10 +320,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     );
   }
 
-  static String _sentOn(String iso) {
-    final when = DateTime.tryParse(iso)?.toLocal();
-    return when == null ? iso : DateFormat('MMM d, yyyy, h:mm a').format(when);
-  }
+  static String _sentOn(String iso) => formatDateTime(iso);
 
   /// Required checklist items the server has no document for at all — a
   /// rejected one is not missing, it has its own Replace action.
@@ -574,15 +572,20 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
         else
           SoftCard(
             padding: const EdgeInsets.fromLTRB(18, 20, 18, 4),
-            child: Column(
-              children: [
-                for (final (i, t) in _timeline.reversed.indexed)
-                  _TimelineRow(
-                    entry: t,
-                    first: i == 0,
-                    last: i == _timeline.length - 1,
-                  ),
-              ],
+            child: Builder(
+              builder: (_) {
+                final shown = timelineForDisplay(_timeline);
+                return Column(
+                  children: [
+                    for (final (i, t) in shown.indexed)
+                      _TimelineRow(
+                        entry: t,
+                        first: i == 0,
+                        last: i == shown.length - 1,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         if (_canCancel) ...[
@@ -711,7 +714,7 @@ class _Header extends StatelessWidget {
               spacing: 16,
               runSpacing: 6,
               children: [
-                // The business, or "Residential" for a home or other private property (ebpco-api 067).
+                // The business, or "Private individual" for a home or family property (ebpco-api 067, design review I6).
                 if (app.applicantLabel case final applicant?)
                   _meta(app.isResidential ? Icons.home_outlined : Icons.storefront_outlined, applicant),
                 if (app.location case final place?) _meta(Icons.place_outlined, place),
@@ -1090,15 +1093,6 @@ class _AssessmentCard extends StatelessWidget {
   final VoidCallback onView;
   const _AssessmentCard({required this.order, required this.paid, required this.pendingVerification, required this.onView});
 
-  static const _lines = [
-    ('filing', 'Filing Fee'),
-    ('processing', 'Processing Fee'),
-    ('architectural', 'Architectural Fee'),
-    ('structural', 'Structural Fee'),
-    ('electrical', 'Electrical Fee'),
-    ('others', 'Other Fees'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     Widget row(String label, String value, {bool bold = false}) => Padding(
@@ -1118,16 +1112,16 @@ class _AssessmentCard extends StatelessWidget {
           Text('Order of Payment', style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(
-            'No. ${order.number}${order.dueDate != null ? ' · Due ${order.dueDate!.substring(0, 10)}' : ''}',
+            'No. ${order.number}${order.dueDate != null ? ' · Due ${formatDate(order.dueDate!)}' : ''}',
             style: SoftType.cellLabel.copyWith(fontSize: 13),
           ),
           const SizedBox(height: 8),
-          for (final line in _lines)
-            if ((order.fees[line.$1] ?? 0) > 0) row(line.$2, pesos(order.fees[line.$1]!)),
+          // The same assessment as the pay screen and the permit: fees, Total amount due, Balance (design review I15).
+          for (final line in feeLinesOf(order)) row(line.name, pesos(line.amountCentavos)),
           const Divider(height: 16, color: SoftColors.line),
-          row('Total', pesos(order.totalCentavos), bold: true),
+          row(totalAmountDueLabel, pesos(order.totalCentavos), bold: true),
           // The balance stands until the Cashier verifies a payment, and says so (QA TC-27).
-          row('Balance', '${pesos(paid ? 0 : order.totalCentavos)}${pendingVerification ? ' — pending verification' : ''}'),
+          row(balanceLabel, '${pesos(paid ? 0 : order.totalCentavos)}${pendingVerification ? ' — pending verification' : ''}'),
           const SizedBox(height: 10),
           // Onsite Payment asks for a copy of the Order (QA TC-26).
           SoftPillButton(label: 'View Order of Payment', kind: SoftPillKind.outline, icon: Icons.receipt_long_outlined, onPressed: onView),
@@ -1149,10 +1143,7 @@ class _TimelineRow extends StatelessWidget {
     required this.last,
   });
 
-  static String _when(String iso) {
-    final when = DateTime.tryParse(iso)?.toLocal();
-    return when == null ? iso : DateFormat('MMM d, yyyy · h:mm a').format(when);
-  }
+  static String _when(String iso) => formatDateTime(iso);
 
   @override
   Widget build(BuildContext context) {
@@ -1196,12 +1187,18 @@ class _TimelineRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // In the status pill's words; a second line only where it
+                  // names the step the office is on (design review I11).
                   Text(
-                    entry.status,
+                    timelineStatusLabel(entry.status),
                     style: SoftType.tileTitle.copyWith(
                       fontWeight: first ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
+                  if (timelineStepName(entry.status) case final step?) ...[
+                    const SizedBox(height: 2),
+                    Text(step, style: SoftType.cellLabel.copyWith(color: SoftColors.ink)),
+                  ],
                   const SizedBox(height: 3),
                   Text(_when(entry.occurredAt), style: SoftType.cellLabel),
                   if (remarks != null && remarks.isNotEmpty) ...[
@@ -1224,4 +1221,43 @@ class _TimelineRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A timeline entry in the status pill's words — the portal's
+/// `applicantStatusLabel` ("Under Evaluation" reads "Under Review",
+/// "Assessed" reads "Awaiting Payment"); a status this app does not know yet
+/// is shown as the server wrote it.
+String timelineStatusLabel(String status) => switch (status) {
+      'Cancelled' || 'Released' || 'Completed' || 'Revision Required' || 'Out for Delivery' => status,
+      'Payment Verified' || 'For Approval' => 'Payment Verified',
+      'Assessed' => 'Awaiting Payment',
+      _ => switch (LifecycleStatusX.tryFromLabel(status)) {
+          final known? => ApplicantStatusX.fromLifecycle(known).label,
+          null => status.trim().isEmpty ? 'Unknown' : status,
+        },
+    };
+
+/// The timeline's second line, only for the statuses that name a step of
+/// the office's work the pill does not ("Under Review" while it checks the
+/// documents, "Payment Verified" while it waits for approval); never a
+/// synonym of the pill (design review I11). Null otherwise.
+String? timelineStepName(String status) => switch (status) {
+      'Document Verification' => 'Document check',
+      'For Approval' => 'For approval',
+      _ => null,
+    };
+
+/// The timeline newest first, as the portal shows it: back-to-back steps the
+/// citizen sees under one word (Received, Document Verification and Under
+/// Evaluation all read "Under Review") show once, the newest; an entry with
+/// the office's remarks always stays.
+List<TimelineEntry> timelineForDisplay(List<TimelineEntry> oldestFirst) {
+  final newestFirst = oldestFirst.reversed.toList();
+  return [
+    for (final (i, entry) in newestFirst.indexed)
+      if (i == 0 ||
+          (entry.remarks?.isNotEmpty ?? false) ||
+          timelineStatusLabel(entry.status) != timelineStatusLabel(newestFirst[i - 1].status))
+        entry,
+  ];
 }

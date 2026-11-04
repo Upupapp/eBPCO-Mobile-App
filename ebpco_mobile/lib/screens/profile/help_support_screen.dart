@@ -38,9 +38,9 @@ const _faqs = [
   ),
   (
     q: 'What payment methods are accepted?',
-    a: 'Onsite payment at the Office of the Municipal Engineer. Bank transfer is not available yet — the '
-        'Municipality has not published a deposit account, so do not transfer permit fees to any account you have '
-        'not confirmed with the Municipality directly.',
+    a: "Onsite payment at the Municipal Treasurer's Office (Cashier), Castilla Town Hall. Bank transfer is not "
+        'available yet — the Municipality has not published a deposit account, so do not transfer permit fees to any '
+        'account you have not confirmed with the Municipality directly.',
   ),
   (
     q: 'Is my data secure?',

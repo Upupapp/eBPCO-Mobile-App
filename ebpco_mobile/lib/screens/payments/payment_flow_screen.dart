@@ -76,6 +76,10 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
   bool _loading = true;
   bool _submitting = false;
 
+  /// The Official Receipt number the citizen may give when telling us of an
+  /// onsite payment; optional, the Cashier records the authoritative one.
+  final _orNumber = TextEditingController();
+
   static const _bankPublished = defaultBankInfo != null;
 
   /// Until the server answers, what this screen always had.
@@ -110,6 +114,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
 
   @override
   void dispose() {
+    _orNumber.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -242,20 +247,44 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
     }
   }
 
-  /// Marking an onsite payment declares that money changed hands, so it is
-  /// asked once, plainly (QA TC-27, 2026-10-03: one tap did it).
+  /// Telling us of an onsite payment declares that money changed hands, so it
+  /// is asked once, plainly (QA TC-27, 2026-10-03: one tap did it), in the
+  /// portal's words, with the Official Receipt number if the citizen has it
+  /// (design review I2). The Cashier records the authoritative one.
   Future<bool> _confirmOnsite(OrderOfPayment order) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Have you paid ${pesos(order.totalCentavos)} at the ${municipalEngineer.name}?'),
-        content: Text(
-          'Only mark it paid once you have paid and have your Official Receipt. Your balance stays '
-          '${pesos(order.totalCentavos)} until the Cashier verifies the payment.',
+        title: Text(onsiteConfirmQuestion(pesos(order.totalCentavos))),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Tell us only once you have paid and have your Official Receipt. Your balance stays '
+                '${pesos(order.totalCentavos)} until the ${municipalTreasurer.cashierLabel} verifies the payment.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                key: const ValueKey('payment-or-number'),
+                controller: _orNumber,
+                maxLength: 40,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  labelText: 'OR number on your receipt (optional)',
+                  helperText: "Leave it blank if you don't have it. The ${municipalTreasurer.cashierLabel} records it "
+                      'when verifying.',
+                  helperMaxLines: 3,
+                  counterText: '',
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Not yet')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Yes, I have paid')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Not Yet')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Yes, I Have Paid')),
         ],
       ),
     );
@@ -287,7 +316,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
           applicationId: widget.applicationId,
         )).documentId;
       }
-      final reference = _method == paymentMethodBankTransfer ? _proofFileName! : 'ONSITE-${DateTime.now().millisecondsSinceEpoch}';
+      final reference = _method == paymentMethodBankTransfer ? _proofFileName! : onsitePaymentReference(_orNumber.text);
       final result = await _api.submitPayment(
         applicationId: widget.applicationId,
         referenceNumber: reference,
@@ -351,7 +380,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
                           children: [
                             Text('${app.displayReference} · ${app.permitType}', style: SoftType.tileSub.copyWith(color: const Color(0xE6FFFFFF))),
                             const SizedBox(height: 14),
-                            Text('Total Assessment', style: SoftType.cellLabel.copyWith(color: const Color(0xCCFFFFFF), fontSize: 13)),
+                            Text('Total amount due', style: SoftType.cellLabel.copyWith(color: const Color(0xCCFFFFFF), fontSize: 13)),
                             const SizedBox(height: 2),
                             Text(pesos(order.totalCentavos), style: SoftType.hero.copyWith(color: SoftColors.white, fontSize: 34)),
                           ],
@@ -380,19 +409,12 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
                             icon: _iconOf(m.method),
                             label: paymentMethodTitle(m),
                             blurb: paymentMethodBlurb(m),
+                            // In test mode the card says so with a chip, as the portal's does.
+                            testMode: m.method == paymentMethodGcash && m.isTestMode,
                             selected: _method == m.method,
                             onTap: () => _chooseMethod(m.method),
                           ),
-                        )
-                    else if (_method == paymentMethodOnsite)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          'Pay onsite at the Municipal Hall. Bank transfer will be offered here once the Municipality '
-                          'publishes its deposit account.',
-                          style: SoftType.body.copyWith(color: SoftColors.muted),
                         ),
-                      ),
                     const SizedBox(height: 6),
                     if (_method == paymentMethodBankTransfer)
                       _bankTransferSection()
@@ -413,7 +435,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
                       )
                     else if (_method == paymentMethodOnsite || _bankPublished)
                       SoftPillButton(
-                        label: _method == paymentMethodBankTransfer ? 'Submit Payment' : 'Mark as Paid',
+                        label: _method == paymentMethodBankTransfer ? 'Submit Payment' : 'I Have Paid',
                         busy: _submitting,
                         onPressed: _submit,
                       ),
@@ -443,21 +465,11 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Test mode said once here and once by the card's chip (design review I15).
                     Text(
-                      'You go to the checkout page to pay ${pesos(order.totalCentavos)}. Once paid, the Cashier '
-                      'verifies the payment and issues your official receipt.',
+                      gcashCheckoutNote(pesos(order.totalCentavos), testMode: _gcashTestMode),
                       style: SoftType.body.copyWith(color: SoftColors.ink),
                     ),
-                    if (_gcashTestMode) ...[
-                      const SizedBox(height: 6),
-                      Text.rich(
-                        const TextSpan(children: [
-                          TextSpan(text: 'Test mode: ', style: TextStyle(fontWeight: FontWeight.w700)),
-                          TextSpan(text: 'no real money is charged.'),
-                        ]),
-                        style: SoftType.body.copyWith(color: SoftColors.ink),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -566,8 +578,8 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
             ),
             const SizedBox(height: 8),
             Text(
-              'Use Onsite Payment instead, or confirm current arrangements with the ${municipalEngineer.name} — '
-              '${municipalEngineer.mobile} or ${municipalEngineer.email}.',
+              'Use Onsite Payment instead, or confirm the current payment arrangements with the '
+              '${municipalTreasurer.name} at $municipalHallAddress.',
               style: SoftType.body.copyWith(color: SoftColors.ink),
             ),
           ],
@@ -584,8 +596,8 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Bank: ${bank.bankName}', style: SoftType.body.copyWith(color: SoftColors.ink)),
-              Text('Account Name: ${bank.accountName}', style: SoftType.body.copyWith(color: SoftColors.ink)),
-              Text('Account Number: ${bank.accountNumber}', style: SoftType.body.copyWith(color: SoftColors.ink)),
+              Text('Account name: ${bank.accountName}', style: SoftType.body.copyWith(color: SoftColors.ink)),
+              Text('Account number: ${bank.accountNumber}', style: SoftType.body.copyWith(color: SoftColors.ink)),
               Text('Branch: ${bank.branch}', style: SoftType.body.copyWith(color: SoftColors.ink)),
             ],
           ),
@@ -623,7 +635,7 @@ class _PaymentFlowScreenState extends State<PaymentFlowScreen> with WidgetsBindi
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Pay directly at the ${municipalEngineer.name}, $municipalHallAddress. Bring a copy of your Order of Payment.',
+              onsitePaymentWhere,
               style: SoftType.body.copyWith(color: SoftColors.ink),
             ),
           ),
@@ -639,8 +651,16 @@ class _MethodCard extends StatelessWidget {
   final String label;
   final String blurb;
   final bool selected;
+  final bool testMode;
   final VoidCallback onTap;
-  const _MethodCard({required this.icon, required this.label, required this.blurb, required this.selected, required this.onTap});
+  const _MethodCard({
+    required this.icon,
+    required this.label,
+    required this.blurb,
+    required this.selected,
+    required this.onTap,
+    this.testMode = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -673,7 +693,15 @@ class _MethodCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(label, style: SoftType.tileTitle.copyWith(fontWeight: selected ? FontWeight.w600 : FontWeight.w500)),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(label, style: SoftType.tileTitle.copyWith(fontWeight: selected ? FontWeight.w600 : FontWeight.w500)),
+                            if (testMode) const SoftStatusPill(label: 'Test mode', tone: SoftStatusTone.pending),
+                          ],
+                        ),
                         const SizedBox(height: 2),
                         Text(blurb, style: SoftType.cellLabel),
                       ],

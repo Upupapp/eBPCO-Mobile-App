@@ -190,7 +190,7 @@ class _Row extends StatelessWidget {
                 Text(application.permitType, style: SoftType.tileTitle.copyWith(fontSize: 16)),
                 const SizedBox(height: 2),
                 Text(application.displayReference, style: SoftType.tileSub),
-                // Who it is for: the business, or "Residential" (ebpco-api 067).
+                // Who it is for: the business, or "Private individual" (ebpco-api 067, design review I6).
                 if (application.applicantLabel case final applicant?) ...[
                   const SizedBox(height: 2),
                   Text(applicant, maxLines: 1, overflow: TextOverflow.ellipsis, style: SoftType.tileSub),

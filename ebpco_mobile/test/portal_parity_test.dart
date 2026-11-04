@@ -4,11 +4,12 @@ import 'package:provider/provider.dart';
 
 import 'package:ebpco_mobile/domain/account_verification.dart';
 import 'package:ebpco_mobile/domain/applying_as.dart';
+import 'package:ebpco_mobile/domain/lgu_contact.dart';
 import 'package:ebpco_mobile/domain/models.dart';
 import 'package:ebpco_mobile/domain/permit_catalog.dart';
+import 'package:ebpco_mobile/domain/permit_fields.dart';
 import 'package:ebpco_mobile/domain/property_address.dart';
 import 'package:ebpco_mobile/domain/who_may_apply.dart';
-import 'package:ebpco_mobile/screens/applications/permit_document_screen.dart';
 import 'package:ebpco_mobile/screens/business/business_detail_screen.dart';
 import 'package:ebpco_mobile/screens/permits/application_wizard_screen.dart';
 import 'package:ebpco_mobile/screens/permits/permit_catalog_screen.dart';
@@ -70,7 +71,14 @@ Widget _app(Widget home, {AccountVerification? verification, List<Business> busi
       child: MaterialApp(home: home),
     );
 
-RequirementDoc _doc(String code, {bool required = true, int hardCopies = 0, String? note, String description = ''}) =>
+RequirementDoc _doc(
+  String code, {
+  bool required = true,
+  int hardCopies = 0,
+  String? note,
+  String description = '',
+  String? applicantKind,
+}) =>
     RequirementDoc(
       code: code,
       label: code,
@@ -80,6 +88,7 @@ RequirementDoc _doc(String code, {bool required = true, int hardCopies = 0, Stri
       status: 'not-provided',
       hardCopies: hardCopies,
       hardCopyNote: note,
+      applicantKind: applicantKind,
     );
 
 /// Brings a row of a lazily built list on screen: drags until it is built, then scrolls it into view.
@@ -107,16 +116,20 @@ class _FakeRequirements {
       _doc('Unified Application Form ($action)', description: 'Signed by the owner.'),
       _doc('Road Clearance', required: false, description: 'Only if the project is along a national road.'),
       _doc('FSEC', hardCopies: 1, note: _bfpNote),
+      _doc('Board Resolution', applicantKind: 'business'),
     ];
   }
 }
 
 void main() {
   group('the wizard', () {
-    test('is titled "New <permit type> application", with the portal\'s four step names', () {
+    test('is titled "<application type> <permit type> application", with the portal\'s four step names', () {
       expect(wizardTitle('Building Permit'), 'New Building Permit application');
       expect(wizardTitle('Certificate of Occupancy'), 'New Certificate of Occupancy application');
       expect(wizardTitle(''), 'New permit application');
+      // It read "New" on a renewal (design review I17).
+      expect(wizardTitle('Building Permit', 'Renewal'), 'Renewal Building Permit application');
+      expect(wizardTitle('Electrical Permit', 'Amendment'), 'Amendment Electrical Permit application');
       expect(wizardStepLabels, ['Applicant & type', 'Details', 'Documents', 'Review & submit']);
     });
 
@@ -158,14 +171,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_selected(tester, 'Business'), isTrue);
-      expect(_selected(tester, 'Residential / Private Individual'), isFalse);
+      expect(_selected(tester, 'Private individual'), isFalse);
       expect(find.text('Dela Cruz Sari-sari Store'), findsWidgets);
     });
 
     test('an unanswered Applying as is asked politely, as the portal does', () {
       expect(
         applyingAsProblem(applyingAs: null, businessId: null),
-        'Please choose whether you are applying as Residential / Private Individual or as a Business.',
+        'Please choose whether you are applying as a private individual or as a business.',
       );
     });
   });
@@ -208,6 +221,10 @@ void main() {
       _FakeRequirements load, {
       void Function(String?)? answered,
     }) async {
+      // The whole list at once: a list builds only what is on screen.
+      tester.view.physicalSize = const Size(1080, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Builder(
@@ -225,23 +242,31 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('Building Permit: the office, New / Renewal / Amendment, tags and hard copies; Start answers the tab',
+    testWidgets('Building Permit: the office, New / Renewal / Amendment, sections and hard copies; Start answers the tab',
         (tester) async {
       final load = _FakeRequirements();
       String? started;
       await open(tester, 'Building Permit', load, answered: (action) => started = action);
 
       expect(find.text('Building Permit'), findsOneWidget);
-      expect(find.text('Office of the Building Official (OBO)'), findsOneWidget);
+      expect(find.text('Office of the Building Official (Municipal Engineering Office)'), findsOneWidget);
       for (final action in ['New', 'Renewal', 'Amendment']) {
         expect(find.byKey(ValueKey('requirements-tab-$action')), findsOneWidget);
       }
       expect(load.asked, ['Building Permit/New']);
       expect(find.text('Unified Application Form (New)'), findsOneWidget);
       expect(find.text('Signed by the owner.'), findsOneWidget);
-      expect(find.text('Required'), findsNWidgets(2));
-      expect(find.text('If applicable'), findsOneWidget);
-      expect(find.text('Online only, no hard copy'), findsNWidgets(2));
+      // Two sections with live counts; a business's own row apart (design review I13).
+      expect(find.text('Required (3)'), findsOneWidget);
+      expect(find.text('If applicable (1)'), findsOneWidget);
+      expect(find.text('Business applications only'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Business applications only')).dy,
+        greaterThan(tester.getTopLeft(find.text('FSEC')).dy),
+      );
+      // "Online only" said once; the one paper document carries its chip.
+      expect(find.text(onlineOnlyNote), findsOneWidget);
+      expect(find.textContaining('Online only'), findsNothing);
       expect(find.text('Hard copies: 1'), findsOneWidget);
       expect(find.text(_bfpNote), findsOneWidget);
 
@@ -257,9 +282,9 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('requirements-tab-Amendment')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Start application'));
+      await tester.tap(find.text('Start Application'));
       await tester.pumpAndSettle();
-      expect(find.text('Start application'), findsNothing);
+      expect(find.text('Start Application'), findsNothing);
       expect(started, 'Amendment');
     });
 
@@ -267,7 +292,8 @@ void main() {
       final load = _FakeRequirements();
       await open(tester, 'Zoning / Locational Clearance', load);
 
-      expect(find.text('Municipal Planning and Development Office (MPDO / Zoning)'), findsOneWidget);
+      expect(find.text(Offices.zoning.name), findsOneWidget);
+      expect(Offices.zoning.name, 'Municipal Planning and Development Office (Zoning Administrator)');
       expect(find.byKey(const ValueKey('requirements-tab-New')), findsNothing);
       expect(load.asked, ['Zoning / Locational Clearance/New']);
       expect(checklistVariesByAction('Building Permit'), isTrue);
@@ -331,13 +357,13 @@ void main() {
       await tester.tap(requirements);
       await tester.pumpAndSettle();
       expect(load.asked, ['Electrical Permit/New']);
-      expect(find.text('Start application'), findsOneWidget);
+      expect(find.text('Start Application'), findsOneWidget);
     });
 
     test('the chip is left out for a type open to homes and businesses', () {
       expect(restrictedKindsChip(bothApplicantKinds), isNull);
       expect(restrictedKindsChip([applyingAsBusiness]), 'Business only');
-      expect(restrictedKindsChip([applyingAsResidential]), 'Residential only');
+      expect(restrictedKindsChip([applyingAsResidential]), 'Private individuals only');
     });
   });
 
@@ -372,7 +398,7 @@ void main() {
     });
   });
 
-  group('the printed permit\'s Valid Until and Approval', () {
+  group('the printed permit\'s Valid until and Approval', () {
     test('a Certificate of Occupancy with no expiry has no fixed term; another type reads a neutral "Not recorded"', () {
       expect(
         permitValidUntil(issued: true, permitType: 'Certificate of Occupancy'),
@@ -382,54 +408,46 @@ void main() {
       for (final type in ['Building Permit', 'Fencing Permit']) {
         expect(permitValidUntil(issued: true, permitType: type), 'Not recorded', reason: type);
       }
-      expect(permitValidUntil(issued: true, permitType: 'Building Permit', expiresOn: '2027-11-04'), 'November 4, 2027');
+      expect(permitValidUntil(issued: true, permitType: 'Building Permit', expiresOn: '2027-11-04'), 'Nov 4, 2027');
       expect(permitValidUntil(issued: false, permitType: 'Certificate of Occupancy'), 'Not yet assigned');
     });
 
-    test('an old permit with no approving official or office reads "Not recorded", never "Not on file"', () {
-      expect(permitApproval(issued: true, office: 'Office of the Building Official (OBO)'),
-          (name: 'Not recorded', position: 'Not recorded'));
+    test('no approving official reads "Not recorded"; no approving office, the issuing office (as the portal)', () {
+      final office = Offices.buildingOfficial.name;
+      expect(permitApproval(issued: true, office: office), (name: 'Not recorded', position: office));
       expect(
         permitApproval(
           issued: true,
           approvingOfficial: 'Engr. Maria Santos',
           approvingOffice: 'Office of the Building Official',
-          office: 'Office of the Building Official (OBO)',
+          office: office,
         ),
         (name: 'Engr. Maria Santos', position: 'Office of the Building Official'),
       );
-      expect(permitApproval(issued: true, approvingOfficial: 'Engr. Maria Santos', office: 'OBO').position, 'Not recorded');
-      expect(permitApproval(issued: false, office: 'Office of the Building Official (OBO)'),
-          (name: 'Not yet assigned', position: 'Office of the Building Official (OBO)'));
+      expect(permitApproval(issued: true, approvingOfficial: 'Engr. Maria Santos', approvingOffice: ' ', office: office).position,
+          office);
+      expect(permitApproval(issued: false, office: office), (name: 'Not recorded', position: office));
     });
   });
 
   group('the printed Property block', () {
     const home = 'Purok 3, San Rafael, Castilla, Sorsogon';
 
-    test('reads the application\'s own address, with the barangay it names, never the business\'s', () {
-      expect(propertyRows(location: home, business: _business()), [
-        ('Barangay', 'San Rafael'),
-        ('Street / Location', home),
-      ]);
+    test('one Location row: the application\'s own address, printed once, never the business\'s', () {
+      expect(propertyRows(location: home, business: _business()), [('Location', home)]);
       expect(propertyLine(location: home, business: _business()), home);
     });
 
-    test('a Residential application with an address is not "Not on file"', () {
-      final rows = propertyRows(location: home);
-      expect(rows.map((r) => r.$2), isNot(contains('Not on file')));
+    test('a private individual\'s application with an address is not "Not on file"', () {
+      expect(propertyRows(location: home), [('Location', home)]);
     });
 
-    test('falls back to the business only when the application gave none', () {
-      expect(propertyRows(location: '  ', business: _business()), [
-        ('Barangay', 'Poblacion'),
-        ('City / Municipality', 'Castilla'),
-        ('Street / Location', 'Rizal St.'),
-        ('Province', 'Sorsogon'),
-      ]);
-      expect(propertyLine(location: null, business: _business()), 'Rizal St., Poblacion, Castilla');
-      expect(propertyRows().map((r) => r.$2).toSet(), {'Not on file'});
+    test('falls back to the business, on one line, only when the application gave none', () {
+      expect(propertyRows(location: '  ', business: _business()), [('Location', 'Rizal St., Poblacion, Castilla, Sorsogon')]);
+      expect(propertyLine(location: null, business: _business()), 'Rizal St., Poblacion, Castilla, Sorsogon');
+      expect(propertyRows(), [('Location', 'Not on file')]);
       expect(propertyLine(), 'Not on file');
+      expect(addressLine([' 10 Rizal Street ', null, '', 'Bonga', 'Castilla']), '10 Rizal Street, Bonga, Castilla');
     });
 
     test('a barangay is named only when exactly one is in the address', () {
@@ -437,7 +455,6 @@ void main() {
       expect(barangayIn('Lot 4, Bongabong Road'), isNull);
       expect(barangayIn('Mayon St., Poblacion, Castilla'), isNull);
       expect(barangayIn('Somewhere far away'), isNull);
-      expect(propertyRows(location: 'Lot 4, Bongabong Road'), [('Street / Location', 'Lot 4, Bongabong Road')]);
     });
   });
 }

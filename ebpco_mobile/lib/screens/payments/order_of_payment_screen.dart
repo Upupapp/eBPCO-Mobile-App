@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
+import '../../domain/assessment_view.dart';
+import '../../domain/dates.dart';
 import '../../domain/models.dart';
+import '../../domain/permit_fields.dart';
 import '../../domain/property_address.dart';
 import '../../domain/reviewing_office.dart';
 import '../../services/businesses_service.dart';
@@ -12,7 +14,6 @@ import '../../services/session_service.dart';
 import '../../widgets/paper_document.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
-import 'payments_list_screen.dart';
 
 /// The citizen portal's `order-of-payment.page.ts`, ported (QA finding TC-26,
 /// 2026-10-03): Onsite Payment says "bring a copy of your Order of Payment",
@@ -25,20 +26,6 @@ class OrderOfPaymentScreen extends StatefulWidget {
 
   @override
   State<OrderOfPaymentScreen> createState() => _OrderOfPaymentScreenState();
-}
-
-const _feeLines = [
-  ('filing', 'Filing Fee'),
-  ('processing', 'Processing Fee'),
-  ('architectural', 'Architectural Fee'),
-  ('structural', 'Structural Fee'),
-  ('electrical', 'Electrical Fee'),
-  ('others', 'Other Fees'),
-];
-
-String _formatDate(String iso) {
-  final parsed = DateTime.tryParse(iso);
-  return parsed == null ? iso : DateFormat('MMMM d, y').format(parsed.toLocal());
 }
 
 class _OrderOfPaymentScreenState extends State<OrderOfPaymentScreen> {
@@ -93,15 +80,13 @@ class _OrderOfPaymentScreenState extends State<OrderOfPaymentScreen> {
     final profile = context.watch<SessionService>().profile;
     final businesses = context.watch<BusinessesService>().businesses.where((b) => b.id == app.businessId);
     final business = businesses.isEmpty ? null : businesses.first;
-    final generatedOn = DateFormat('MMMM d, y h:mm a').format(DateTime.now());
-    final lines = [
-      for (final line in _feeLines)
-        if ((order.fees[line.$1] ?? 0) > 0) ([line.$2, pesos(order.fees[line.$1]!)], false),
-    ];
+    final generatedOn = formatMoment(DateTime.now());
+    final lines = [for (final line in feeLinesOf(order)) ([line.name, pesos(line.amountCentavos)], false)];
 
     return PaperDocumentViewer(
       page: PaperPage(
         children: [
+          // The office that assessed the fees (the permit type's issuer); the Treasurer collects them.
           PaperHeader(office: reviewingOfficeFor(app.permitType)),
           PaperTitle(title: 'Order of Payment', subtitle: app.permitType),
           PaperNumberBlock(
@@ -109,37 +94,44 @@ class _OrderOfPaymentScreenState extends State<OrderOfPaymentScreen> {
             value: order.number,
             facts: [
               ('Application No.', app.displayReference),
-              ('Date Issued', _formatDate(order.assessedAt)),
-              ('Pay On or Before', order.dueDate != null ? _formatDate(order.dueDate!) : 'Not set by the office'),
+              ('Date issued', formatDate(order.assessedAt)),
+              ('Pay on or before', order.dueDate != null ? formatDate(order.dueDate!) : 'Not set by the office'),
             ],
           ),
           PaperSection(
             title: 'Payor',
-            child: PaperFields(rows: [
-              ('Name', profile?.fullName ?? 'Not on file'),
-              ('Business / Project', (app.businessName ?? '').isEmpty ? 'Not provided' : app.businessName!),
-              ('Transaction', app.applicationAction),
-              // The application's own property address; the business's only when it gave none.
-              ('Property', propertyLine(location: app.location, business: business)),
-            ]),
+            child: PaperFields(
+              rows: [
+                ('Name', (profile?.fullName ?? '').isEmpty ? 'Not on file' : profile!.fullName),
+                // A business's name only on a business application: the occupancy is the one statement of use (design review I6).
+                if (app.businessNameOnDocument case final name?) (PermitLabels.businessName, name),
+                (PermitLabels.applicationType, app.applicationAction),
+                // The application's own property address; the business's only when it gave none.
+                ('Property', propertyLine(location: app.location, business: business)),
+              ],
+              wide: const {'Property'},
+            ),
           ),
           PaperSection(
             title: 'Fees',
-            child: PaperTable(
-              header: const ['Fee', 'Amount'],
-              rows: [
-                ...lines,
-                (['Total Amount Due', pesos(order.totalCentavos)], true),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                PaperTable(
+                  header: const [PermitLabels.fee, PermitLabels.amount],
+                  rows: [
+                    ...lines,
+                    ([totalAmountDueLabel, pesos(order.totalCentavos)], true),
+                  ],
+                ),
+                // Where to pay, word for word as the pay screen says it (design review I2).
+                PaperNote(PaymentDocumentText.orderPayNote(order.feeScheduleVersion)),
               ],
             ),
           ),
-          const PaperNote(
-            "Pay the full amount at the Municipal Treasurer's Office and keep the Official Receipt it gives you.",
-          ),
           PaperFooter(lines: [
-            'A copy of the Order of Payment issued through eBPCO by the Municipality of Castilla, Sorsogon. '
-                "Show it at the Municipal Treasurer's Office when you pay.",
-            'Generated $generatedOn · Page 1 of 1',
+            PaymentDocumentText.orderFooter,
+            'Document Ref. ${order.number} · Generated $generatedOn · Page 1 of 1',
           ]),
         ],
       ),

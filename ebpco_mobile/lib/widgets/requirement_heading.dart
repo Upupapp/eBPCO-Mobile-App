@@ -6,30 +6,28 @@ import 'soft_card.dart';
 import 'soft_chrome.dart';
 
 /// The top of one document's card in the wizard's Documents step: whether it
-/// is attached, its name, Required or If applicable, what it is, and whether
-/// paper copies are needed too ("Online only, no hard copy", or "Hard copies:
-/// n" with the LGU's note; ebpco-api 071). The same order as the portal's.
-/// Also each row of the Requirements sheet, where nothing is attached yet
-/// ([showAttachState] false: a plain document mark, not an upload one).
+/// is attached, its name, what it is, and — only on a document that needs
+/// paper too — a "Hard copies: n" chip with the LGU's note under it word for
+/// word (ebpco-api 071). Required or If applicable is said once by the group
+/// it sits in, and "online only" once above the list ([onlineOnlyNote]), as
+/// the portal's wizard and Requirements window do (design review I13, 4 Nov
+/// 2026). Also each row of the Requirements sheet, where nothing is attached
+/// yet ([showAttachState] false: a plain document mark, not an upload one).
 class RequirementHeading extends StatelessWidget {
   const RequirementHeading({
     super.key,
     required this.doc,
-    required this.required,
     required this.attached,
     this.showAttachState = true,
   });
 
   final RequirementDoc doc;
-
-  /// Needed before submitting: the server's own flag, or the wizard's (the
-  /// copy of a paper permit on that path).
-  final bool required;
   final bool attached;
   final bool showAttachState;
 
   @override
   Widget build(BuildContext context) {
+    final copies = hardCopiesText(doc.hardCopies);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -48,48 +46,25 @@ class RequirementHeading extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(doc.label, style: SoftType.tileTitle),
-                  const SizedBox(height: 6),
-                  SoftStatusPill(
-                    label: requirementTag(required: required),
-                    tone: required ? SoftStatusTone.danger : SoftStatusTone.neutral,
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.only(top: 9),
+                child: Text(doc.label, style: SoftType.tileTitle),
               ),
             ),
           ],
         ),
         if (doc.description.isNotEmpty) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(doc.description, style: SoftType.body),
         ],
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              doc.hardCopies > 0 ? Icons.description_outlined : Icons.cloud_done_outlined,
-              size: 16,
-              color: SoftColors.muted,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hardCopiesText(doc.hardCopies),
-                    style: SoftType.cellLabel.copyWith(fontWeight: FontWeight.w600, color: SoftColors.ink),
-                  ),
-                  if (doc.hardCopyNote case final note?) Text(note, style: SoftType.cellLabel),
-                ],
-              ),
-            ),
+        if (copies != null) ...[
+          const SizedBox(height: 8),
+          SoftStatusPill(label: copies, tone: SoftStatusTone.pending),
+          if (doc.hardCopyNote case final note?) ...[
+            const SizedBox(height: 4),
+            Text(note, style: SoftType.cellLabel),
           ],
-        ),
+        ],
       ],
     );
   }

@@ -52,7 +52,8 @@ String applicantKindsChip(List<String> kinds) {
   final residential = kinds.contains(applyingAsResidential);
   final business = kinds.contains(applyingAsBusiness);
   if (business && !residential) return 'Business only';
-  if (residential && !business) return 'Residential only';
+  // One name for the applicant kind (design review I6): who applies, not what the building is for.
+  if (residential && !business) return 'Private individuals only';
   return 'Homes & businesses';
 }
 
@@ -69,7 +70,7 @@ String? restrictedKindsChip(List<String> kinds) =>
 String? usualUseNote(String permitType, [List<String>? kinds]) => kinds != null && kinds.length < 2
     ? null
     : switch (permitType) {
-        'Sign Permit' => 'Usually a business sign; a home-based practice can apply as Residential.',
+        'Sign Permit' => 'Usually a business sign; a home-based practice can apply as a private individual.',
         'Fencing Permit' => 'Usually for homes.',
         'Interior Design Permit' => 'Usually shop and office fit-outs.',
         'Certificate of Occupancy' => 'After the building work is done, before the building is used.',

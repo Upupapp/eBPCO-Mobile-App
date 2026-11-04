@@ -22,9 +22,13 @@ RequirementsLoader liveRequirements({String? applyingAs}) => (permitType, action
 /// "Requirements" on a Permit Services card: the portal's
 /// `requirements-modal.component.ts` as a sheet. The reviewing office, New /
 /// Renewal / Amendment tabs for a type that keeps a list per action (the
-/// Building Permit), and per document Required or If applicable, its name,
-/// what it is, and whether paper copies are needed too. Answers the action to
-/// start an application with when "Start application" is tapped, else null.
+/// Building Permit), one line saying everything is uploaded online, then the
+/// documents in two sections, Required (n) and If applicable (n), each with
+/// a business's own rows apart; per document its name, what it is, and a
+/// "Hard copies: n" chip only where paper is needed (design review I13, 4 Nov
+/// 2026). The header and tabs stay put while the list scrolls. Answers the
+/// action to start an application with when "Start Application" is tapped,
+/// else null.
 Future<String?> showRequirementsSheet(
   BuildContext context, {
   required String permitType,
@@ -97,6 +101,9 @@ class _RequirementsSheetState extends State<RequirementsSheet> {
                 ),
               ],
               const SizedBox(height: 12),
+              // Said once here; a document needing paper carries its own chip.
+              Text(onlineOnlyNote, key: const ValueKey('requirements-online-note'), style: SoftType.cellLabel),
+              const SizedBox(height: 4),
               Flexible(
                 child: FutureBuilder<List<RequirementDoc>>(
                   key: ValueKey('requirements-$_action'),
@@ -120,27 +127,53 @@ class _RequirementsSheetState extends State<RequirementsSheet> {
                         ),
                       );
                     }
-                    return ListView.separated(
+                    return ListView(
                       shrinkWrap: true,
-                      itemCount: documents.length,
-                      separatorBuilder: (_, _) => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Divider(height: 1, color: SoftColors.line),
-                      ),
-                      itemBuilder: (_, i) => RequirementHeading(
-                        doc: documents[i],
-                        required: documents[i].required,
-                        attached: false,
-                        showAttachState: false,
-                      ),
+                      children: [
+                        for (final group in requirementSections(documents)) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14, bottom: 4),
+                            child: Text(
+                              '${requirementTag(required: group.required)} (${group.everyone.length + group.businessOnly.length})',
+                              style: SoftType.tileTitle.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          ..._rows(group.everyone),
+                          if (group.businessOnly.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              child: Text(
+                                'Business applications only',
+                                style: SoftType.cellLabel.copyWith(fontWeight: FontWeight.w600, color: SoftColors.ink),
+                              ),
+                            ),
+                            ..._rows(group.businessOnly),
+                          ],
+                        ],
+                      ],
                     );
                   },
                 ),
               ),
               const SizedBox(height: 14),
-              SoftPillButton(
-                label: 'Start application',
-                onPressed: () => Navigator.of(context).pop(_action),
+              Row(
+                children: [
+                  Expanded(
+                    child: SoftPillButton(
+                      label: 'Close',
+                      kind: SoftPillKind.outline,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: SoftPillButton(
+                      label: 'Start Application',
+                      onPressed: () => Navigator.of(context).pop(_action),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -148,6 +181,17 @@ class _RequirementsSheetState extends State<RequirementsSheet> {
       ),
     );
   }
+
+  /// One section's documents, each over a rule.
+  List<Widget> _rows(List<RequirementDoc> documents) => [
+        for (final doc in documents) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: SoftColors.line),
+          ),
+          RequirementHeading(doc: doc, attached: false, showAttachState: false),
+        ],
+      ];
 
   Widget _couldNotLoad() => Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -172,3 +216,18 @@ class _RequirementsSheetState extends State<RequirementsSheet> {
         ),
       );
 }
+
+/// The sheet's sections: Required first, then If applicable, each with the
+/// rows for everyone, then a business's own; an empty section is left out.
+/// The portal's Requirements window, which counts each section the same way.
+List<({bool required, List<RequirementDoc> everyone, List<RequirementDoc> businessOnly})> requirementSections(
+  List<RequirementDoc> documents,
+) =>
+    [
+      for (final required in [true, false])
+        (
+          required: required,
+          everyone: documents.where((d) => d.required == required && !d.isBusinessOnly).toList(),
+          businessOnly: documents.where((d) => d.required == required && d.isBusinessOnly).toList(),
+        ),
+    ].where((group) => group.everyone.isNotEmpty || group.businessOnly.isNotEmpty).toList();
