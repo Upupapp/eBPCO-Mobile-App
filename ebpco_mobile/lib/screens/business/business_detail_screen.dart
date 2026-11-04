@@ -10,6 +10,7 @@ import '../../widgets/before_ebpco_badge.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../permits/permit_catalog_screen.dart';
 import 'edit_business_screen.dart';
 import '../../widgets/message_bar.dart';
 
@@ -42,6 +43,16 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _applyForPermit(Business business) {
+    if (!business.isActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        messageBar('This business is inactive. Reactivate it before applying for a permit.'),
+      );
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => PermitCatalogScreen(businessId: business.id)));
   }
 
   Future<void> _edit(Business business) async {
@@ -105,6 +116,16 @@ class _BusinessDetailScreenState extends State<BusinessDetailScreen> {
             ),
           ),
           const SizedBox(height: 22),
+          // The portal's "Apply for a permit": Permit Services, then the wizard
+          // as Business with this business chosen (QA TC-30). An inactive one
+          // is told why it cannot.
+          SoftPillButton(
+            key: const ValueKey('business-apply'),
+            label: 'Apply for a permit',
+            icon: Icons.note_add_outlined,
+            onPressed: () => _applyForPermit(business),
+          ),
+          const SizedBox(height: 12),
           SoftPillButton(
             label: business.isActive ? 'Deactivate Business' : 'Reactivate Business',
             kind: business.isActive ? SoftPillKind.dangerSoft : SoftPillKind.outline,

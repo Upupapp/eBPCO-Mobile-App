@@ -232,8 +232,19 @@ class CitizenApi {
   /// shows before any application row exists yet. [applyingAs] adds the rows
   /// for that kind of applicant (ebpco-api 068: a business is also asked for
   /// the signatory's authority); without it, only the rows for everyone.
-  Future<List<RequirementDoc>> requirementsForPermitType(String permitType, {String? applyingAs}) async {
-    final query = applyingAs == null ? '' : '?${Uri(queryParameters: {'applyingAs': applyingAs}).query}';
+  /// [applicationAction] ('New', 'Renewal' or 'Amendment') picks that
+  /// action's list for a type that keeps one per action (the Building Permit);
+  /// without it, only the rows for every action.
+  Future<List<RequirementDoc>> requirementsForPermitType(
+    String permitType, {
+    String? applyingAs,
+    String? applicationAction,
+  }) async {
+    final params = {
+      'applicationAction': ?applicationAction,
+      'applyingAs': ?applyingAs,
+    };
+    final query = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
     final body = await _client.get<Map<String, dynamic>>('/requirements/${Uri.encodeComponent(permitType)}$query');
     return (body['documents'] as List<dynamic>)
         .map((e) => RequirementDoc.fromCatalogJson(e as Map<String, dynamic>))

@@ -70,3 +70,13 @@ const List<String> allPermitTypes = [
   'Certificate of Occupancy',
   'FSIC for Occupancy Permit (BFP)',
 ];
+
+/// Whether [permitType] keeps one checklist per application action (ebpco-api
+/// 047): the Building Permit only. Its Requirements sheet offers New /
+/// Renewal / Amendment; every other type has one list. Mirrors the portals'
+/// `checklistVariesByAction` (the static catalog's `documentsByAction`).
+bool checklistVariesByAction(String permitType) => permitType == 'Building Permit';
+
+/// The application actions, in the order the wizard and the Requirements
+/// sheet offer them (as the wizard's chips word them: New, not New Application).
+const List<String> applicationActions = ['New', 'Renewal', 'Amendment'];

@@ -110,9 +110,13 @@ void main() {
       expect(halfMade['portalKey'], 'kept');
     });
 
-    test('a type that does not ask it sends nothing new and keeps what the form had', () {
+    test('a type that does not ask it carries none, not even an answer saved earlier', () {
       expect(form().containsKey('occupancyGroup'), isFalse);
-      expect(form(previous: const {'occupancyGroup': 'E'})['occupancyGroup'], 'E');
+      final carried = form(previous: const {'occupancyGroup': 'other', 'occupancyOther': 'Chapel', 'portalKey': 'kept'});
+      expect(carried.containsKey('occupancyGroup'), isFalse);
+      expect(carried.containsKey('occupancyOther'), isFalse);
+      expect(carried['portalKey'], 'kept');
+      expect(carried['scopeOfWork'], 'Two-storey house');
     });
 
     test('a draft reopens on what it saved; an unknown value reads as not chosen', () {

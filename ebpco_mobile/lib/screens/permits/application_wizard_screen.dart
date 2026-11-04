@@ -33,6 +33,7 @@ import '../../widgets/requirement_heading.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
+import '../../widgets/verification_banner.dart';
 import '../applications/application_detail_screen.dart';
 import '../business/register_business_screen.dart';
 import '../profile/account_verification_screen.dart';
@@ -41,8 +42,8 @@ import '../../widgets/blank_form_link.dart';
 import '../../widgets/message_bar.dart';
 
 /// The one generic, catalog-driven wizard for every permit type — mirrors
-/// `application-wizard.page.ts`: 4 steps (Applying as & Type → Details →
-/// Documents → Review & Submit), a real Draft created after Step 1 and
+/// `application-wizard.page.ts`: 4 steps (Applicant & type → Details →
+/// Documents → Review & submit), a real Draft created after Step 1 and
 /// kept current with `PATCH /applications/{id}` as the citizen moves
 /// forward, finished with `POST /applications/{id}/submit`.
 ///
@@ -61,13 +62,16 @@ class ApplicationWizardScreen extends StatefulWidget {
   /// Set when resuming a Draft from Application Detail's "Continue".
   final String? draftId;
 
-  /// A fresh start as a 'Renewal' or 'Amendment' of [permitNumber], for
-  /// [businessId] when it is one of the citizen's businesses: "Renew" on a
-  /// permit issued before eBPCO (ebpco-api 069). Continue still has the
-  /// server check the number, exactly like a typed one. A resumed draft
-  /// keeps its own.
+  /// A fresh start as a 'Renewal' or 'Amendment' of [permitNumber]: "Renew"
+  /// on a permit issued before eBPCO (ebpco-api 069), or the Requirements
+  /// sheet's tab. Continue still has the server check the number, exactly
+  /// like a typed one. A resumed draft keeps its own.
   final String? applicationAction;
   final String? permitNumber;
+
+  /// A fresh start for one of the citizen's businesses: Applying as starts
+  /// on Business with it chosen. From that business's own "Apply for a
+  /// permit" (the portal's `?businessId=`), or "Renew" on one of its permits.
   final String? businessId;
 
   const ApplicationWizardScreen({
@@ -203,12 +207,15 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
     _permitType = widget.permitType ?? '';
     final session = context.read<SessionService>();
     _delivery = DeliveryChoiceController(address: addressFromProfile(session.profile));
-    if (!_isResuming && (widget.applicationAction == 'Renewal' || widget.applicationAction == 'Amendment')) {
-      _applicationAction = widget.applicationAction!;
-      _permitNumber.text = widget.permitNumber?.trim() ?? '';
+    if (!_isResuming) {
+      // From a business: Business, with it chosen; never overwritten below.
       if (widget.businessId case final businessId?) {
         _businessId = businessId;
         _applyingAs = applyingAsBusiness;
+      }
+      if (widget.applicationAction == 'Renewal' || widget.applicationAction == 'Amendment') {
+        _applicationAction = widget.applicationAction!;
+        _permitNumber.text = widget.permitNumber?.trim() ?? '';
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -712,6 +719,13 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       .where(_isRequired)
       .every((r) => _attachedDocIds.containsKey(r.code));
 
+  /// The progress line over the documents: required ones only, since an "If
+  /// applicable" one never holds an application back (the portal's).
+  String get _requiredProgress => requiredProgressText(
+        required: _visibleRequirements.where(_isRequired).length,
+        attached: _visibleRequirements.where((r) => _isRequired(r) && _attachedDocIds.containsKey(r.code)).length,
+      );
+
   /// Links this wizard's new uploads to the draft (`PATCH` with
   /// `documentIds`), skipping any already linked.
   Future<void> _attachPending() async {
@@ -863,7 +877,8 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   @override
   Widget build(BuildContext context) {
     return SoftPageScaffold(
-      title: _permitType.isEmpty ? 'New Application' : _permitType,
+      // "New <permit type> application", the portal's (LGU, 4 Nov 2026).
+      title: wizardTitle(_permitType),
       actions: [
         if (_draftId != null && _step < 4)
           TextButton(
@@ -887,6 +902,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // Not verified yet (ebpco-api 067): prepare and save
+                        // freely; Submit waits for it. As on the portal.
+                        const VerificationBanner(),
                         if (_step == 1) _step1(),
                         if (_step == 2) _step2(),
                         if (_step == 3) _step3(),
@@ -988,7 +1006,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         SoftChoiceCard(
           icon: Icons.storefront_outlined,
           title: applyingAsLabel(applyingAsBusiness),
-          subtitle: businessClosed ?? 'A business or commercial establishment',
+          subtitle: businessClosed ?? 'For a business or commercial establishment you registered.',
           selected: _applyingAs == applyingAsBusiness,
           onTap: businessClosed == null ? () => _chooseApplyingAs(applyingAsBusiness) : null,
         ),
@@ -1371,92 +1389,23 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Text('Documents', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 6),
         Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
-        if (_visibleRequirements.any((r) => !_isRequired(r))) ...[
-          const SizedBox(height: 4),
-          Text('If applicable: attach only if your project includes this work.', style: SoftType.body),
+        if (_visibleRequirements.any(_isRequired)) ...[
+          const SizedBox(height: 10),
+          Text(
+            _requiredProgress,
+            key: const ValueKey('wizard-required-progress'),
+            style: SoftType.cellValue,
+          ),
         ],
-        const SizedBox(height: 16),
-        ..._visibleRequirements.map((doc) {
-          final attached = _attachedDocIds[doc.code];
-          final uploading = _uploadingCode == doc.code;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: SoftCard(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // "If applicable", not "Optional" (LGU, 4 Nov 2026), and
-                  // whether paper copies are needed too (ebpco-api 071).
-                  RequirementHeading(doc: doc, required: _isRequired(doc), attached: attached != null),
-                  // A document that IS a form to sign on paper (the Unified
-                  // Building Permit Form, an ancillary form): the blank one,
-                  // to print, sign and upload here.
-                  if (blankFormFor(doc.code) case final form?) ...[
-                    const SizedBox(height: 14),
-                    BlankFormLink(form: form),
-                  ],
-                  const SizedBox(height: 14),
-                  if (uploading)
-                    Center(
-                      child: Column(
-                        children: [
-                          const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Uploading… a large file can take a minute on mobile data.',
-                            textAlign: TextAlign.center,
-                            style: SoftType.cellLabel,
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (attached != null)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _attachedFileNames[doc.code] ?? 'Attached',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: SoftType.cellValue.copyWith(
-                              color: SoftColors.verifiedInk,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => _replace(doc),
-                          child: Text(
-                            'Replace',
-                            style: SoftType.sectionLink.copyWith(fontSize: 14),
-                          ),
-                        ),
-                      ],
-                    )
-                  else ...[
-                    SoftPillButton(
-                      label: 'Attach File',
-                      kind: SoftPillKind.outline,
-                      icon: Icons.attach_file_rounded,
-                      onPressed: () => _pickAndUpload(doc),
-                    ),
-                    if (_library.isNotEmpty)
-                      SoftPillButton(
-                        label: 'Choose from My Documents',
-                        kind: SoftPillKind.text,
-                        icon: Icons.folder_outlined,
-                        onPressed: () => _reuseFromLibrary(doc),
-                      ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        }),
+        const SizedBox(height: 6),
+        // Required first, then If applicable, each under its own heading; an
+        // empty group is left out (the portal's).
+        for (final group in documentGroups(_visibleRequirements, isRequired: _isRequired)) ...[
+          const SizedBox(height: 10),
+          DocumentGroupHeading(required: group.required),
+          const SizedBox(height: 10),
+          for (final doc in group.documents) _documentCard(doc),
+        ],
         const SizedBox(height: 14),
         _navRow(
           onBack: () => _goTo(2),
@@ -1464,6 +1413,88 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           onNext: _toStep4,
         ),
       ],
+    );
+  }
+
+  Widget _documentCard(RequirementDoc doc) {
+    final attached = _attachedDocIds[doc.code];
+    final uploading = _uploadingCode == doc.code;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SoftCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // "If applicable", not "Optional" (LGU, 4 Nov 2026), and
+            // whether paper copies are needed too (ebpco-api 071).
+            RequirementHeading(doc: doc, required: _isRequired(doc), attached: attached != null),
+            // A document that IS a form to sign on paper (the Unified
+            // Building Permit Form, an ancillary form): the blank one,
+            // to print, sign and upload here.
+            if (blankFormFor(doc.code) case final form?) ...[
+              const SizedBox(height: 14),
+              BlankFormLink(form: form),
+            ],
+            const SizedBox(height: 14),
+            if (uploading)
+              Center(
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Uploading… a large file can take a minute on mobile data.',
+                      textAlign: TextAlign.center,
+                      style: SoftType.cellLabel,
+                    ),
+                  ],
+                ),
+              )
+            else if (attached != null)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _attachedFileNames[doc.code] ?? 'Attached',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SoftType.cellValue.copyWith(
+                        color: SoftColors.verifiedInk,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _replace(doc),
+                    child: Text(
+                      'Replace',
+                      style: SoftType.sectionLink.copyWith(fontSize: 14),
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              SoftPillButton(
+                label: 'Attach File',
+                kind: SoftPillKind.outline,
+                icon: Icons.attach_file_rounded,
+                onPressed: () => _pickAndUpload(doc),
+              ),
+              if (_library.isNotEmpty)
+                SoftPillButton(
+                  label: 'Choose from My Documents',
+                  kind: SoftPillKind.text,
+                  icon: Icons.folder_outlined,
+                  onPressed: () => _reuseFromLibrary(doc),
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -1672,7 +1703,7 @@ class _StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const labels = ['Type', 'Details', 'Documents', 'Review'];
+    const labels = wizardStepLabels;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
       child: Column(
@@ -1702,6 +1733,51 @@ class _StepIndicator extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The wizard's title: "New `<permit type>` application", the portal's (LGU,
+/// 4 Nov 2026: it read the bare type, or "New Business Permit Application").
+String wizardTitle(String permitType) =>
+    'New ${permitType.trim().isEmpty ? 'permit' : permitType.trim()} application';
+
+/// The four steps, as the portal's stepper names them.
+const List<String> wizardStepLabels = ['Applicant & type', 'Details', 'Documents', 'Review & submit'];
+
+/// The Documents step's groups: Required first, then If applicable, each in
+/// the checklist's own order; an empty group is left out.
+List<({bool required, List<RequirementDoc> documents})> documentGroups(
+  List<RequirementDoc> documents, {
+  required bool Function(RequirementDoc) isRequired,
+}) =>
+    [
+      for (final required in [true, false])
+        (required: required, documents: documents.where((d) => isRequired(d) == required).toList()),
+    ].where((group) => group.documents.isNotEmpty).toList();
+
+/// The progress line over the documents, counting required ones only.
+String requiredProgressText({required int required, required int attached}) =>
+    '$attached of $required required attached';
+
+/// The heading over each group of documents, the portal's words.
+class DocumentGroupHeading extends StatelessWidget {
+  const DocumentGroupHeading({super.key, required this.required});
+
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(requirementTag(required: required), style: SoftType.section.copyWith(fontSize: 17, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 2),
+        Text(
+          required ? 'Needed before you can submit.' : 'Attach only if your project includes this work.',
+          style: SoftType.cellLabel,
+        ),
+      ],
     );
   }
 }

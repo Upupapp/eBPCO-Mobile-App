@@ -56,6 +56,12 @@ String applicantKindsChip(List<String> kinds) {
   return 'Homes & businesses';
 }
 
+/// The chip on a catalog card: only on a type the Municipality opened to homes
+/// OR businesses, not both ("Homes & businesses" on every card said nothing;
+/// the portal's `restricted`). Null for a type open to both.
+String? restrictedKindsChip(List<String> kinds) =>
+    kinds.contains(applyingAsResidential) && kinds.contains(applyingAsBusiness) ? null : applicantKindsChip(kinds);
+
 /// Who usually applies, for the few types where that is worth saying. Never
 /// a rule: a doctor's home clinic sign is filed by the doctor.
 /// A type restricted to one kind ([kinds]) gets none: its chip says who may

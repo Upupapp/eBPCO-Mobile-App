@@ -84,14 +84,20 @@ String verificationStatusLabel(String status) => switch (status) {
       _ => 'No ID yet',
     };
 
-/// "Your ID was not accepted: [reason]", or without the reason when none was given.
+/// "Your ID was not accepted: [reason]." — the officer's reason word for word,
+/// with a full stop only when it has none; without the reason when none was
+/// given. The portal's `rejectedHeadline`.
 String notAcceptedMessage(AccountVerification verification) {
   final reason = verification.reason;
-  return reason == null ? 'Your ID was not accepted.' : 'Your ID was not accepted: $reason';
+  if (reason == null) return 'Your ID was not accepted.';
+  return 'Your ID was not accepted: $reason${RegExp(r'[.!?]$').hasMatch(reason) ? '' : '.'}';
 }
 
-/// What Home says while the account is not verified; null once it is.
-/// [action] is the button's label, or null when there is nothing to do but wait.
+/// The banner on Home, Permit Services and the application wizard while the
+/// account is not verified; null once it is (or when the server sent no
+/// verification at all). The portal's `VerificationBannerComponent`, word for
+/// word. [action] is the button's label, or null when there is nothing to do
+/// but wait.
 ({String title, String? body, String? action})? verificationBanner(AccountVerification? verification) {
   if (verification == null || verification.isVerified) return null;
   if (verification.isPending) {
@@ -102,29 +108,26 @@ String notAcceptedMessage(AccountVerification verification) {
     );
   }
   if (verification.isRejected) {
-    return (
-      title: notAcceptedMessage(verification),
-      body: 'Upload a valid ID again so the Municipality can verify your account.',
-      action: 'Upload again',
-    );
+    return (title: notAcceptedMessage(verification), body: null, action: 'Upload again');
   }
   return (
-    title: 'Verify your account to submit applications',
-    body: 'Upload a photo of a valid government ID. You can prepare applications while you wait.',
+    title: 'Verify your account to submit applications.',
+    body: 'Send a photo of a valid government ID. You can prepare applications while the Municipality checks it.',
     action: 'Verify my account',
   );
 }
 
-/// Why the wizard offers Save as Draft instead of Submit; null when the
-/// account may submit.
+/// Why the wizard's Review step offers Save as Draft instead of Submit; null
+/// when the account may submit. The portal's `submitBlockedMessage`.
 String? filingBlockedMessage(AccountVerification? verification) {
   if (verification == null || verification.isVerified) return null;
-  const saved = 'Your draft is saved. You can submit it once your account is verified.';
-  if (verification.isPending) return 'Your account is still being verified by the Municipality. $saved';
-  if (verification.isRejected) {
-    return '${notAcceptedMessage(verification)} Upload a valid ID again under Profile > Account verification. $saved';
+  if (verification.isPending) {
+    return 'Your account is being verified. You can prepare applications now and submit once it is verified.';
   }
-  return 'Verify your account before submitting: upload a valid government ID under Profile > Account verification. $saved';
+  if (verification.isRejected) {
+    return '${notAcceptedMessage(verification)} Upload your ID again under Profile > Account verification.';
+  }
+  return 'Verify your account to submit applications: upload a valid government ID under Profile > Account verification.';
 }
 
 /// What is still missing from the Valid ID form, worded for the citizen, or

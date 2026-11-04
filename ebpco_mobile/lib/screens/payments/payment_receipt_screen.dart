@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/property_address.dart';
 import '../../domain/reviewing_office.dart';
 import '../../services/businesses_service.dart';
 import '../../services/session_service.dart';
@@ -52,8 +53,9 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
   void initState() {
     super.initState();
     _load();
-    // The Property section reads the business list, which is only loaded
-    // once My Businesses has been opened.
+    // The Property section falls back to the business list (an application
+    // with no address of its own), which is only loaded once My Businesses
+    // has been opened.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final businesses = context.read<BusinessesService>();
@@ -144,12 +146,9 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
           ),
           PaperSection(
             title: 'Property',
-            child: PaperFields(rows: [
-              ('Barangay', business?.barangay ?? 'Not on file'),
-              ('City / Municipality', business?.city ?? 'Not on file'),
-              ('Street / Location', business?.street ?? 'Not on file'),
-              ('Province', business?.province ?? 'Not on file'),
-            ]),
+            // The application's own property address; the business's only
+            // when it gave none (a Residential one names no business).
+            child: PaperFields(rows: propertyRows(location: app.location, business: business)),
           ),
           PaperSection(
             title: 'Project',

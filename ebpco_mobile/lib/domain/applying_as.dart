@@ -56,7 +56,7 @@ String? propertyOwnerNameOf(Map<String, dynamic> form) {
 /// Residential needs nothing more: the citizen applies for their own property.
 String? applyingAsProblem({required String? applyingAs, required String? businessId}) {
   if (applyingAs == null) {
-    return 'Choose whether you are applying as Residential / Private Individual or as a Business.';
+    return 'Please choose whether you are applying as Residential / Private Individual or as a Business.';
   }
   if (applyingAs == applyingAsBusiness) {
     return businessId == null ? 'Please select a business.' : null;
@@ -73,7 +73,10 @@ String? applyingAsProblem({required String? applyingAs, required String? busines
 /// [occupancy] is the use or character of occupancy as `occupancyForm` gives
 /// it (ebpco-api 071), for a permit type that asks it; it replaces whatever the
 /// form held, so a choice half-made (Others, the use not typed yet) saves
-/// nothing rather than the earlier answer. Null for a type that does not ask.
+/// nothing rather than the earlier answer. Null for a type that does not ask,
+/// and then the form carries none at all: an answer saved earlier (the draft
+/// was another type, or the portal wrote one) is dropped, as the portal's own
+/// form never sends it for such a type.
 Map<String, dynamic> applicationForm({
   Map<String, dynamic> previous = const {},
   required String? applyingAs,
@@ -86,7 +89,7 @@ Map<String, dynamic> applicationForm({
   const occupancyKeys = {'occupancyGroup', 'occupancyOther'};
   return {
     for (final MapEntry(:key, :value) in previous.entries)
-      if (key != 'propertyOwner' && (occupancy == null || !occupancyKeys.contains(key))) key: value,
+      if (key != 'propertyOwner' && !occupancyKeys.contains(key)) key: value,
     'applyingAs': applyingAs,
     'scopeOfWork': text(scopeOfWork),
     'professionalName': text(professionalName),

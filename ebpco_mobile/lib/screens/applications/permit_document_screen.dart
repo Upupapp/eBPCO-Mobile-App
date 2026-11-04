@@ -7,6 +7,7 @@ import '../../core/api/problem.dart';
 import '../../core/config/app_config.dart';
 import '../../domain/models.dart';
 import '../../domain/occupancy.dart';
+import '../../domain/property_address.dart';
 import '../../domain/reviewing_office.dart';
 import '../../services/businesses_service.dart';
 import '../../services/session_service.dart';
@@ -34,6 +35,35 @@ String _formatDate(String iso) {
   return parsed == null ? iso : DateFormat('MMMM d, y').format(parsed.toLocal());
 }
 
+/// What a Certificate of Occupancy says under "Valid Until": it has no fixed
+/// term (the backend fills an expiry for every other type, 12 or 6 months).
+const String occupancyNoExpiry = "No fixed expiry (valid while the building's use and occupancy stay the same)";
+
+/// "Valid Until" on the printed permit: the date the office recorded at issue;
+/// for a Certificate of Occupancy with none, that it does not expire; for any
+/// other type with none (an old permit), a neutral "Not recorded".
+String permitValidUntil({required bool issued, required String permitType, String? expiresOn}) {
+  if (!issued) return 'Not yet assigned';
+  final date = expiresOn?.trim() ?? '';
+  if (date.isNotEmpty) return _formatDate(date);
+  return permitType == 'Certificate of Occupancy' ? occupancyNoExpiry : 'Not recorded';
+}
+
+/// The Approval block's name and position: who approved it and for which
+/// office, as recorded at issue (QA TC-04, TC-18); "Not recorded" for either
+/// on an old permit that has none. Before issue: not assigned yet, under the
+/// reviewing [office].
+({String name, String position}) permitApproval({
+  required bool issued,
+  String? approvingOfficial,
+  String? approvingOffice,
+  required String office,
+}) {
+  if (!issued) return (name: 'Not yet assigned', position: office);
+  String recorded(String? value) => (value?.trim().isEmpty ?? true) ? 'Not recorded' : value!.trim();
+  return (name: recorded(approvingOfficial), position: recorded(approvingOffice));
+}
+
 class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
   final _api = CitizenApi.instance;
   ApplicationSummary? _app;
@@ -45,8 +75,9 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
   void initState() {
     super.initState();
     _load();
-    // The Property section reads the business list, which is only loaded
-    // once My Businesses has been opened.
+    // The Property section falls back to the business list (an application
+    // with no address of its own), which is only loaded once My Businesses
+    // has been opened.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final businesses = context.read<BusinessesService>();
@@ -102,6 +133,12 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
     final verificationUrl =
         issued ? '${AppConfig.userPortalBaseUrl}/verify/${Uri.encodeComponent(permit.permitNumber)}' : null;
     final generatedOn = DateFormat('MMMM d, y h:mm a').format(DateTime.now());
+    final approval = permitApproval(
+      issued: issued,
+      approvingOfficial: permit?.approvingOfficial,
+      approvingOffice: permit?.approvingOffice,
+      office: office,
+    );
 
     return PaperDocumentViewer(
       page: PaperPage(
@@ -116,14 +153,11 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
             facts: [
               ('Application No.', app.displayReference),
               ('Date Issued', issued ? _formatDate(permit.issuedDate) : 'Not yet assigned'),
-              // As the office recorded it when issuing (QA TC-04); the portal says the same.
+              // As the office recorded it when issuing (QA TC-04); a Certificate
+              // of Occupancy has no fixed term.
               (
                 'Valid Until',
-                !issued
-                    ? 'Not yet assigned'
-                    : permit.expiresOn != null
-                        ? _formatDate(permit.expiresOn!)
-                        : 'Not recorded by the office',
+                permitValidUntil(issued: issued, permitType: app.permitType, expiresOn: permit?.expiresOn),
               ),
             ],
           ),
@@ -140,12 +174,9 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
           ),
           PaperSection(
             title: 'Property',
-            child: PaperFields(rows: [
-              ('Barangay', business?.barangay ?? 'Not on file'),
-              ('City / Municipality', business?.city ?? 'Not on file'),
-              ('Street / Location', business?.street ?? 'Not on file'),
-              ('Province', business?.province ?? 'Not on file'),
-            ]),
+            // The application's own property address; the business's only
+            // when it gave none (a Residential one names no business).
+            child: PaperFields(rows: propertyRows(location: app.location, business: business)),
           ),
           PaperSection(
             title: 'Project',
@@ -180,9 +211,9 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
           PaperSignature(
             heading: 'Approval',
             pendingLabel: 'Pending Authorized Signature',
-            // Who approved it, as recorded at issue (QA TC-04, TC-18); the portal says the same.
-            name: permit?.approvingOfficial ?? 'Not on file',
-            position: permit?.approvingOffice ?? office,
+            // Who approved it, as recorded at issue (QA TC-04, TC-18).
+            name: approval.name,
+            position: approval.position,
           ),
           PaperQr(
             url: verificationUrl,

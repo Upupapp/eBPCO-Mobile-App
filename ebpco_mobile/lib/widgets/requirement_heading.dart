@@ -9,8 +9,16 @@ import 'soft_chrome.dart';
 /// is attached, its name, Required or If applicable, what it is, and whether
 /// paper copies are needed too ("Online only, no hard copy", or "Hard copies:
 /// n" with the LGU's note; ebpco-api 071). The same order as the portal's.
+/// Also each row of the Requirements sheet, where nothing is attached yet
+/// ([showAttachState] false: a plain document mark, not an upload one).
 class RequirementHeading extends StatelessWidget {
-  const RequirementHeading({super.key, required this.doc, required this.required, required this.attached});
+  const RequirementHeading({
+    super.key,
+    required this.doc,
+    required this.required,
+    required this.attached,
+    this.showAttachState = true,
+  });
 
   final RequirementDoc doc;
 
@@ -18,6 +26,7 @@ class RequirementHeading extends StatelessWidget {
   /// copy of a paper permit on that path).
   final bool required;
   final bool attached;
+  final bool showAttachState;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +37,11 @@ class RequirementHeading extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SoftIconTile(
-              icon: attached ? Icons.check_rounded : Icons.upload_file_rounded,
+              icon: !showAttachState
+                  ? Icons.description_outlined
+                  : attached
+                      ? Icons.check_rounded
+                      : Icons.upload_file_rounded,
               background: attached ? SoftColors.verifiedSoft : SoftColors.primarySoft,
               foreground: attached ? SoftColors.verifiedInk : SoftColors.primary,
               size: 40,

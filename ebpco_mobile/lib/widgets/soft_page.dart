@@ -121,7 +121,21 @@ class SoftListRow extends StatelessWidget {
   /// A small label under the title, such as a [SoftStatusPill].
   final Widget? tag;
 
-  const SoftListRow({super.key, required this.icon, required this.title, this.subtitle, required this.onTap, this.iconBackground, this.iconColor, this.tag});
+  /// A second, smaller way into the row's subject, under its text (a catalog
+  /// card's "Requirements"); the row's own tap stays the main one.
+  final Widget? action;
+
+  const SoftListRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+    this.iconBackground,
+    this.iconColor,
+    this.tag,
+    this.action,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +164,10 @@ class SoftListRow extends StatelessWidget {
                   if (subtitle != null) ...[
                     SizedBox(height: tag == null ? 2 : 6),
                     Text(subtitle!, style: SoftType.tileSub),
+                  ],
+                  if (action != null) ...[
+                    const SizedBox(height: 4),
+                    action!,
                   ],
                 ],
               ),

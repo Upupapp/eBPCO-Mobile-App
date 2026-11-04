@@ -106,7 +106,7 @@ class _AccountVerificationScreenState extends State<AccountVerificationScreen> {
             const SizedBox(height: 20),
             if (_error != null)
               Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, style: AppTypography.error)),
-            SoftPillButton(label: 'Send for verification', busy: _sending, onPressed: _send),
+            SoftPillButton(label: 'Send ID for verification', busy: _sending, onPressed: _send),
           ],
         ],
       ),

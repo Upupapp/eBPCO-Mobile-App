@@ -70,11 +70,15 @@ void main() {
     expect(verificationStatusLabel('rejected'), 'ID not accepted');
   });
 
-  group('the Home banner', () {
+  group('the banner (Home, Permit Services, the wizard), in the portal\'s words', () {
     test('asks for an ID when none was sent', () {
       final banner = verificationBanner(_v('unsubmitted'))!;
-      expect(banner.title, 'Verify your account to submit applications');
-      expect(banner.action, isNotNull);
+      expect(banner.title, 'Verify your account to submit applications.');
+      expect(
+        banner.body,
+        'Send a photo of a valid government ID. You can prepare applications while the Municipality checks it.',
+      );
+      expect(banner.action, 'Verify my account');
     });
 
     test('says to wait, with nothing to press, while the ID is checked', () {
@@ -87,8 +91,21 @@ void main() {
     test('gives the reason, word for word, when the ID was not accepted', () {
       final banner = verificationBanner(_v('rejected', note: 'The ID has expired.'))!;
       expect(banner.title, 'Your ID was not accepted: The ID has expired.');
+      expect(banner.body, isNull);
       expect(banner.action, 'Upload again');
       expect(notAcceptedMessage(_v('rejected')), 'Your ID was not accepted.');
+    });
+
+    test('ends the officer\'s reason with a full stop only when it has none (the portal\'s rejectedHeadline)', () {
+      expect(notAcceptedMessage(_v('rejected', note: 'blurry')), 'Your ID was not accepted: blurry.');
+      expect(notAcceptedMessage(_v('rejected', note: '  blurry  ')), 'Your ID was not accepted: blurry.');
+      expect(notAcceptedMessage(_v('rejected', note: 'Expired!')), 'Your ID was not accepted: Expired!');
+      expect(notAcceptedMessage(_v('rejected', note: 'Is this yours?')), 'Your ID was not accepted: Is this yours?');
+      expect(notAcceptedMessage(_v('rejected', note: '   ')), 'Your ID was not accepted.');
+      expect(
+        filingBlockedMessage(_v('rejected', note: 'blurry')),
+        'Your ID was not accepted: blurry. Upload your ID again under Profile > Account verification.',
+      );
     });
 
     test('is gone once verified', () {
@@ -96,14 +113,21 @@ void main() {
     });
   });
 
-  test('the wizard says the draft is kept when it cannot be submitted yet', () {
+  test('the wizard says why it cannot submit yet, in the portal\'s words (submitBlockedMessage)', () {
     expect(filingBlockedMessage(_v('verified')), isNull);
-    expect(filingBlockedMessage(_v('pending')), contains('still being verified'));
-    expect(filingBlockedMessage(_v('unsubmitted')), contains('Profile > Account verification'));
-    expect(filingBlockedMessage(_v('rejected', note: 'Blurred.')), startsWith('Your ID was not accepted: Blurred.'));
-    for (final status in ['pending', 'unsubmitted', 'rejected']) {
-      expect(filingBlockedMessage(_v(status)), contains('Your draft is saved'), reason: status);
-    }
+    expect(filingBlockedMessage(null), isNull);
+    expect(
+      filingBlockedMessage(_v('pending')),
+      'Your account is being verified. You can prepare applications now and submit once it is verified.',
+    );
+    expect(
+      filingBlockedMessage(_v('unsubmitted')),
+      'Verify your account to submit applications: upload a valid government ID under Profile > Account verification.',
+    );
+    expect(
+      filingBlockedMessage(_v('rejected', note: 'Blurred.')),
+      'Your ID was not accepted: Blurred. Upload your ID again under Profile > Account verification.',
+    );
   });
 
   group('the Valid ID form', () {

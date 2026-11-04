@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models.dart';
@@ -156,7 +157,7 @@ class _NotificationRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(entry.body, style: SoftType.body.copyWith(color: SoftColors.ink)),
                 const SizedBox(height: 8),
-                Text(entry.createdAt.substring(0, 10), style: SoftType.cellLabel),
+                Text(notificationWhen(entry.createdAt), style: SoftType.cellLabel),
               ],
             ),
           ),
@@ -164,4 +165,12 @@ class _NotificationRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// When a notification came, as the rest of the app writes a moment (an
+/// application's history): "Nov 4, 2026 · 3:05 PM", in local time. It showed
+/// the raw YYYY-MM-DD.
+String notificationWhen(String iso) {
+  final when = DateTime.tryParse(iso)?.toLocal();
+  return when == null ? iso : DateFormat('MMM d, yyyy · h:mm a').format(when);
 }
