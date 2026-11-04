@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../domain/models.dart';
+import '../../domain/occupancy.dart';
 import '../../domain/permit_delivery.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
@@ -412,6 +413,9 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
 
     final details = <(IconData, String, String)>[
       (Icons.category_outlined, 'Application type', app.applicationAction),
+      // As filed (ebpco-api 071): a Building Permit or Certificate of
+      // Occupancy; left out on older filings and other types.
+      if (occupancyLabelOf(app.form) case final use?) (Icons.apartment_outlined, occupancyFieldLabel, use),
       // An older residential application filed for someone else's property
       // (before the 2026-10-28 ruling) names the owner.
       if (app.propertyOwnerName case final owner?) (Icons.person_outline_rounded, 'Property owner', owner),

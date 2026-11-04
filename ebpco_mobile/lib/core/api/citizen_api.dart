@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../../domain/account_verification.dart';
 import '../../domain/earlier_records.dart';
 import '../../domain/models.dart';
+import '../../domain/payment_methods.dart';
 import '../../domain/permit_delivery.dart';
 import '../../domain/who_may_apply.dart';
 import '../config/app_config.dart';
@@ -441,6 +442,22 @@ class CitizenApi {
       settles: body['settles'] as bool? ?? false,
     );
   }
+
+  /// `GET /payment-methods` (ebpco-api 071) — the methods the LGU accepts
+  /// right now, a bare array; GCash with `mode: 'test'` while it is the test
+  /// provider.
+  Future<List<PaymentMethodOption>> paymentMethods() async {
+    final body = await _client.get<List<dynamic>>('/payment-methods');
+    return body.whereType<Map<String, dynamic>>().map(PaymentMethodOption.fromJson).toList();
+  }
+
+  /// `POST /applications/{id}/payments/gcash` (ebpco-api 071) — opens a GCash
+  /// checkout for the Order of Payment in force (201). No body and no
+  /// Idempotency-Key: the server names the amount, and each call opens a new
+  /// checkout (an unused one simply expires after 30 minutes).
+  Future<GcashCheckout> startGcashPayment(String applicationId) async => GcashCheckout.fromJson(
+        await _client.post<Map<String, dynamic>>('/applications/$applicationId/payments/gcash'),
+      );
 
   // ── Businesses ───────────────────────────────────────────────────────
 

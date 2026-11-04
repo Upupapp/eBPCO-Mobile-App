@@ -626,7 +626,7 @@ class _HistoryRow extends StatelessWidget {
       PaymentTone.pending => (SoftColors.pendingCream, SoftColors.pendingInk, Icons.schedule_rounded),
       PaymentTone.neutral => (SoftColors.chipWash, SoftColors.muted, Icons.remove_rounded),
     };
-    final method = item.entry.method == 'Onsite' ? 'Paid at the Treasurer’s Office' : item.entry.method;
+    final method = paymentMethodText(item.entry.method);
     return InkWell(
       onTap: onTap,
       child: Padding(

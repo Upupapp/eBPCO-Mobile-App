@@ -69,21 +69,29 @@ String? applyingAsProblem({required String? applyingAs, required String? busines
 /// (the portal may write more) are kept. Empty text is saved as null, as before.
 /// Never `propertyOwner`: a draft saved before the 2026-10-28 ruling may still
 /// carry one, and the server refuses a filing for someone else's property.
+///
+/// [occupancy] is the use or character of occupancy as `occupancyForm` gives
+/// it (ebpco-api 071), for a permit type that asks it; it replaces whatever the
+/// form held, so a choice half-made (Others, the use not typed yet) saves
+/// nothing rather than the earlier answer. Null for a type that does not ask.
 Map<String, dynamic> applicationForm({
   Map<String, dynamic> previous = const {},
   required String? applyingAs,
   required String scopeOfWork,
   required String professionalName,
   required String prcNumber,
+  Map<String, dynamic>? occupancy,
 }) {
   String? text(String value) => value.trim().isEmpty ? null : value.trim();
+  const occupancyKeys = {'occupancyGroup', 'occupancyOther'};
   return {
     for (final MapEntry(:key, :value) in previous.entries)
-      if (key != 'propertyOwner') key: value,
+      if (key != 'propertyOwner' && (occupancy == null || !occupancyKeys.contains(key))) key: value,
     'applyingAs': applyingAs,
     'scopeOfWork': text(scopeOfWork),
     'professionalName': text(professionalName),
     'prcNumber': text(prcNumber),
+    ...?occupancy,
   };
 }
 

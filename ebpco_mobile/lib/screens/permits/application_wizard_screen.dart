@@ -14,6 +14,7 @@ import '../../domain/account_verification.dart';
 import '../../domain/applying_as.dart';
 import '../../domain/models.dart';
 import '../../domain/draft_resume.dart';
+import '../../domain/occupancy.dart';
 import '../../domain/permit_delivery.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
@@ -28,6 +29,7 @@ import '../../theme/soft_widget.dart';
 import '../../widgets/choice_card.dart';
 import '../../widgets/delivery_choice_form.dart';
 import '../../widgets/document_library_sheet.dart';
+import '../../widgets/requirement_heading.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
 import '../../widgets/soft_page.dart';
@@ -145,6 +147,22 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   final _professionalName = TextEditingController();
   final _prcNumber = TextEditingController();
 
+  /// The use or character of occupancy (ebpco-api 071): one of the National
+  /// Building Code's groups, or 'other' with [_occupancyOther] typed in.
+  /// Asked of a Building Permit and a Certificate of Occupancy only.
+  String? _occupancyGroup;
+  final _occupancyOther = TextEditingController();
+
+  /// How many times a draft's answer was read in: the field starts again on it.
+  int _occupancyLoads = 0;
+
+  bool get _asksOccupancy => asksOccupancy(_permitType);
+
+  /// What the use or character of occupancy still lacks, or null; always null
+  /// for a type that does not ask it.
+  String? get _occupancyProblem =>
+      _asksOccupancy ? occupancyProblem(_occupancyGroup, _occupancyOther.text) : null;
+
   List<RequirementDoc> _requirements = [];
   final Map<String, String> _attachedDocIds =
       {}; // requirementCode -> documentId
@@ -256,6 +274,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _scopeOfWork,
       _professionalName,
       _prcNumber,
+      _occupancyOther,
     ]) {
       c.dispose();
     }
@@ -283,6 +302,12 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _scopeOfWork.text = app.form['scopeOfWork'] as String? ?? '';
       _professionalName.text = app.form['professionalName'] as String? ?? '';
       _prcNumber.text = app.form['prcNumber'] as String? ?? '';
+      // As saved; a draft saved before it was asked (ebpco-api 071) reopens
+      // with nothing chosen, on step 1.
+      final occupancy = occupancyFromForm(app.form);
+      _occupancyGroup = occupancy.group;
+      _occupancyOther.text = occupancy.other;
+      _occupancyLoads++;
       _applicantKinds = applicantKindsFor(await _kindsByType, _permitType);
       // A draft saved as a kind the type no longer takes reopens on step 1.
       final kindChanged = _honourApplicantKinds();
@@ -294,6 +319,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       _goTo(resumeStep(
         applicantDone: !kindChanged &&
             _applyingAsProblem == null &&
+            _occupancyProblem == null &&
             (_isResidential || business.isEmpty || business.first.isActive) &&
             (!_needsPermitReference || app.renewsPermitNumber != null || app.priorPermitClaim != null),
         detailsDone: _projectAddress.text.trim().isNotEmpty && _scopeOfWork.text.trim().isNotEmpty,
@@ -398,6 +424,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         scopeOfWork: _scopeOfWork.text,
         professionalName: _professionalName.text,
         prcNumber: _prcNumber.text,
+        occupancy: _asksOccupancy ? occupancyForm(_occupancyGroup, _occupancyOther.text) : null,
       );
 
   void _chooseApplyingAs(String value) => setState(() {
@@ -433,7 +460,14 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Future<void> _toStep2() async {
-    if (_applicantKindClosed ?? _applyingAsProblem case final problem?) {
+    // In the order step 1 asks them, like the portal: Applying as, the use or
+    // character of occupancy (the server refuses to file a Building Permit or
+    // Certificate of Occupancy without it, in these same words), the business.
+    if (_applicantKindClosed ??
+            (_applyingAs == null ? _applyingAsProblem : null) ??
+            _occupancyProblem ??
+            _applyingAsProblem
+        case final problem?) {
       setState(() => _error = problem);
       return;
     }
@@ -812,8 +846,11 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
       );
     } on ApiError catch (e) {
       if (!mounted) return;
-      // 422: the account is not verified yet, or "Applying as" is incomplete.
-      // The detail is a whole sentence for the citizen; the draft stays saved.
+      // 422: the account is not verified yet, "Applying as" is incomplete, or
+      // the use or character of occupancy is missing (ebpco-api 071). The
+      // detail is a whole sentence for the citizen; the draft stays saved. One
+      // that points at the use of occupancy is shown on step 1, where it is asked.
+      if (e.problem?.fieldErrors.any((f) => f.pointer.startsWith('/form/occupancy')) ?? false) _goTo(1);
       setState(() => _error = e.citizenMessage);
       if (e.status == 422) {
         context.read<SessionService>().refreshProfile().catchError((_) {});
@@ -960,6 +997,14 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           const SizedBox(height: 10),
           _note(note),
         ],
+        // The use or character of occupancy (LGU, 4 Nov 2026: "no option for
+        // residential, institutional"): the National Building Code's Groups A
+        // to J, asked of a Building Permit and a Certificate of Occupancy only,
+        // and required to file one (ebpco-api 071).
+        if (_asksOccupancy) ...[
+          const SizedBox(height: 18),
+          _occupancyField(),
+        ],
         if (_applyingAs == applyingAsBusiness) ...[
           const SizedBox(height: 18),
           _label('Business'),
@@ -1046,6 +1091,55 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         const SizedBox(height: 26),
         _errorLine(),
         SoftPillButton(label: 'Continue', busy: _busy, onPressed: _toStep2),
+      ],
+    );
+  }
+
+  /// "Use or character of occupancy": the groups, and the use typed in for
+  /// "Others (specify)".
+  Widget _occupancyField() {
+    void clearError() {
+      if (_error != null) setState(() => _error = null);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _label(occupancyFieldLabel),
+        DropdownButtonFormField<String>(
+          // A draft read back after this field was built shows its answer.
+          key: ValueKey('wizard-occupancy-group-$_occupancyLoads'),
+          initialValue: _occupancyGroup,
+          hint: const Text("Select the building's use"),
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(SoftRadius.md),
+          menuMaxHeight: 420,
+          decoration: const InputDecoration(helperText: occupancyHint, helperMaxLines: 3),
+          items: [
+            for (final g in occupancyGroups)
+              DropdownMenuItem(value: g.value, child: Text(g.label, overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (value) => setState(() {
+            _occupancyGroup = value;
+            _error = null;
+          }),
+        ),
+        if (_occupancyGroup == occupancyOtherValue) ...[
+          const SizedBox(height: 16),
+          _label(occupancyOtherLabel),
+          TextField(
+            key: const ValueKey('wizard-occupancy-other'),
+            controller: _occupancyOther,
+            style: SoftType.field,
+            maxLength: occupancyOtherMax,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => clearError(),
+            decoration: const InputDecoration(
+              hintText: 'e.g. Chapel, water refilling station',
+              counterText: '',
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1277,6 +1371,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
         Text('Documents', style: SoftType.h1.copyWith(fontSize: 24)),
         const SizedBox(height: 6),
         Text('Accepted formats: PDF, JPG, JPEG, PNG.', style: SoftType.body),
+        if (_visibleRequirements.any((r) => !_isRequired(r))) ...[
+          const SizedBox(height: 4),
+          Text('If applicable: attach only if your project includes this work.', style: SoftType.body),
+        ],
         const SizedBox(height: 16),
         ..._visibleRequirements.map((doc) {
           final attached = _attachedDocIds[doc.code];
@@ -1288,43 +1386,9 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SoftIconTile(
-                        icon: attached != null
-                            ? Icons.check_rounded
-                            : Icons.upload_file_rounded,
-                        background: attached != null
-                            ? SoftColors.verifiedSoft
-                            : SoftColors.primarySoft,
-                        foreground: attached != null
-                            ? SoftColors.verifiedInk
-                            : SoftColors.primary,
-                        size: 40,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(doc.label, style: SoftType.tileTitle),
-                            const SizedBox(height: 6),
-                            SoftStatusPill(
-                              label: _isRequired(doc) ? 'Required' : 'Optional',
-                              tone: _isRequired(doc)
-                                  ? SoftStatusTone.danger
-                                  : SoftStatusTone.neutral,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (doc.description.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(doc.description, style: SoftType.body),
-                  ],
+                  // "If applicable", not "Optional" (LGU, 4 Nov 2026), and
+                  // whether paper copies are needed too (ebpco-api 071).
+                  RequirementHeading(doc: doc, required: _isRequired(doc), attached: attached != null),
                   // A document that IS a form to sign on paper (the Unified
                   // Building Permit Form, an ancillary form): the blank one,
                   // to print, sign and upload here.
@@ -1444,6 +1508,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
               if (!_isResidential) ...[
                 const Divider(height: 1, color: SoftColors.line),
                 row('Business', businessName ?? 'Not chosen'),
+              ],
+              if (_asksOccupancy && _occupancyGroup != null) ...[
+                const Divider(height: 1, color: SoftColors.line),
+                row(occupancyFieldLabel, occupancyLabel(_occupancyGroup!, _occupancyOther.text)),
               ],
               Align(
                 alignment: Alignment.centerRight,

@@ -289,6 +289,13 @@ class RequirementDoc {
   final List<String> documentIds;
   final String status;
 
+  /// How many paper copies the office also needs (ebpco-api 071): 0 unless
+  /// the LGU asks; the BFP asks one. Absent (an older server) reads as 0.
+  final int hardCopies;
+
+  /// Where or why, under the count (the BFP's: where to submit it); null when there is none.
+  final String? hardCopyNote;
+
   const RequirementDoc({
     required this.code,
     required this.label,
@@ -296,9 +303,21 @@ class RequirementDoc {
     required this.required,
     required this.documentIds,
     required this.status,
+    this.hardCopies = 0,
+    this.hardCopyNote,
   });
 
   bool get isProvided => status == 'provided';
+
+  static int _hardCopiesOf(Map<String, dynamic> json) => switch (json['hardCopies']) {
+        final int n when n > 0 => n,
+        _ => 0,
+      };
+
+  static String? _hardCopyNoteOf(Map<String, dynamic> json) => switch (json['hardCopyNote']) {
+        final String note when note.trim().isNotEmpty => note.trim(),
+        _ => null,
+      };
 
   factory RequirementDoc.fromJson(Map<String, dynamic> json) => RequirementDoc(
         code: json['code'] as String,
@@ -307,6 +326,8 @@ class RequirementDoc {
         required: json['required'] as bool? ?? true,
         documentIds: (json['documentIds'] as List<dynamic>?)?.cast<String>() ?? const [],
         status: json['status'] as String? ?? 'not-provided',
+        hardCopies: _hardCopiesOf(json),
+        hardCopyNote: _hardCopyNoteOf(json),
       );
 
   /// From the pre-filing catalog (`GET /requirements/{permitType}`), which
@@ -319,8 +340,18 @@ class RequirementDoc {
         required: json['required'] as bool? ?? true,
         documentIds: const [],
         status: 'not-provided',
+        hardCopies: _hardCopiesOf(json),
+        hardCopyNote: _hardCopyNoteOf(json),
       );
 }
+
+/// The line under a document saying whether paper copies are needed too
+/// (ebpco-api 071), the portal's `hardCopiesText`.
+String hardCopiesText(int hardCopies) => hardCopies > 0 ? 'Hard copies: $hardCopies' : 'Online only, no hard copy';
+
+/// The tag on a document: needed before submitting, or only when the project
+/// includes that work ("If applicable", not "Optional": LGU, 4 Nov 2026).
+String requirementTag({required bool required}) => required ? 'Required' : 'If applicable';
 
 class DocumentEntry {
   final String id;

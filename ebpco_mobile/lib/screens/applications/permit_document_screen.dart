@@ -6,6 +6,7 @@ import '../../core/api/citizen_api.dart';
 import '../../core/api/problem.dart';
 import '../../core/config/app_config.dart';
 import '../../domain/models.dart';
+import '../../domain/occupancy.dart';
 import '../../domain/reviewing_office.dart';
 import '../../services/businesses_service.dart';
 import '../../services/session_service.dart';
@@ -150,6 +151,8 @@ class _PermitDocumentScreenState extends State<PermitDocumentScreen> {
             title: 'Project',
             child: PaperFields(rows: [
               ('Transaction', app.applicationAction),
+              // As filed (ebpco-api 071), the portal's printed line; left out when absent.
+              if (occupancyLabelOf(app.form) case final use?) (occupancyFieldLabel, use),
               ('Date Applied', app.dateSubmitted != null ? _formatDate(app.dateSubmitted!) : 'Pending'),
               if (permit?.scope != null) ('Scope', permit!.scope!),
             ]),

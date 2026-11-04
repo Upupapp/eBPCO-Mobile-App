@@ -54,6 +54,10 @@ PaymentAttemptView paymentAttemptView(PaymentEntry p) {
   }
 }
 
+/// How a payment was made, as the history line says it: the server's method
+/// name ('Bank Transfer', 'GCash' since ebpco-api 071), except onsite.
+String paymentMethodText(String method) => method == 'Onsite' ? 'Paid at the Treasurer’s Office' : method;
+
 /// Where an Order of Payment stands. Each order is in exactly one, so the
 /// filter counts add up to All.
 enum OrderState { awaiting, rejected, verifying, paid }
