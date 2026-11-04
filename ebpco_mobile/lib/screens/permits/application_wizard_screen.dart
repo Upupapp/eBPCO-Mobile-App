@@ -1578,7 +1578,7 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
   }
 
   Widget _step4() {
-    Widget row(String label, String value) => Padding(
+    Widget row(String label, String value, {String? note}) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1586,6 +1586,10 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
           Text(label, style: SoftType.cellLabel.copyWith(fontSize: 13)),
           const SizedBox(height: 2),
           Text(value, style: SoftType.cellValue),
+          if (note != null) ...[
+            const SizedBox(height: 2),
+            Text(note, style: SoftType.cellLabel),
+          ],
         ],
       ),
     );
@@ -1641,9 +1645,18 @@ class _ApplicationWizardScreenState extends State<ApplicationWizardScreen> {
                 child: TextButton(onPressed: () => _goTo(2), child: const Text('Edit details')),
               ),
               const Divider(height: 1, color: SoftColors.line),
+              // Required documents only, as the Documents step counts them; any
+              // if-applicable ones attached are said apart (the portal's). It
+              // read "10 of 22" on a complete application (demo, 5 Nov 2026).
               row(
                 'Documents attached',
-                '${_visibleRequirements.where((r) => _attachedDocIds.containsKey(r.code)).length} of ${_visibleRequirements.length}',
+                reviewDocumentsCount(
+                  required: _visibleRequirements.where(_isRequired).length,
+                  attached: _visibleRequirements.where((r) => _isRequired(r) && _attachedDocIds.containsKey(r.code)).length,
+                ),
+                note: ifApplicableAttachedNote(
+                  _visibleRequirements.where((r) => !_isRequired(r) && _attachedDocIds.containsKey(r.code)).length,
+                ),
               ),
             ],
           ),
@@ -1876,6 +1889,16 @@ List<({bool required, List<RequirementDoc> documents})> documentGroups(
 /// The progress line over the documents, counting required ones only.
 String requiredProgressText({required int required, required int attached}) =>
     '$attached of $required required attached';
+
+/// Review & submit's "Documents attached": required ones only, as the
+/// Documents step counts them; "None required" when the checklist has none
+/// (the portal's).
+String reviewDocumentsCount({required int required, required int attached}) =>
+    required > 0 ? requiredProgressText(required: required, attached: attached) : 'None required';
+
+/// The line under it for the if-applicable documents attached, apart from the
+/// required count; none attached, no line (the portal's).
+String? ifApplicableAttachedNote(int attached) => attached > 0 ? 'and $attached if applicable' : null;
 
 /// The heading over each group of documents, the portal's words.
 class DocumentGroupHeading extends StatelessWidget {

@@ -110,8 +110,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               if (apps.awaitingActionCount > 0)
                 _Callout(
                   icon: Icons.priority_high_rounded,
-                  title: '${apps.awaitingActionCount} application${apps.awaitingActionCount == 1 ? '' : 's'} need your action',
-                  body: 'Open it to see what the reviewing office needs from you.',
+                  title: awaitingActionTitle(apps.awaitingActionCount),
+                  body: awaitingActionBody(apps.awaitingActionCount),
                   onTap: () => RootShell.jumpTo(context, 1),
                 )
               else if (unread > 0)
@@ -186,6 +186,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
+
+/// Home's callout over the applications waiting on the citizen, the verb
+/// agreeing with the count: it read "1 application need your action" (demo
+/// recording, 5 Nov 2026).
+String awaitingActionTitle(int count) =>
+    count == 1 ? '1 application needs your action' : '$count applications need your action';
+
+/// The line under it: "it" for one application, "them" for more.
+String awaitingActionBody(int count) => count == 1
+    ? 'Open it to see what the reviewing office needs from you.'
+    : 'Open them to see what the reviewing offices need from you.';
 
 class _Callout extends StatelessWidget {
   final IconData icon;

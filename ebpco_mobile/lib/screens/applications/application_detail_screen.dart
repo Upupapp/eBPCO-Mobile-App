@@ -175,8 +175,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           label: doc.label,
           contentBase64: base64Encode(file.bytes),
         );
-        final stripped = removed.isEmpty ? '' : ' ${removed.join(', ')} was removed from the file.';
-        return 'Replacement sent for "${doc.label}".$stripped';
+        return 'Replacement sent for "${doc.label}".${strippedMetadataNote(removed)}';
       });
 
   /// The portal's `attachMissing`: first-time upload for a required document
@@ -1222,6 +1221,14 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
+
+/// After a replacement, what the server stripped from the file ("exif"), the
+/// verb agreeing with the list: two read "exif, xmp was removed" (found
+/// checking the app's counts after Home's, 5 Nov 2026). Empty when nothing
+/// was removed.
+String strippedMetadataNote(List<String> removed) => removed.isEmpty
+    ? ''
+    : ' ${removed.join(', ')} ${removed.length == 1 ? 'was' : 'were'} removed from the file.';
 
 /// A timeline entry in the status pill's words — the portal's
 /// `applicantStatusLabel` ("Under Evaluation" reads "Under Review",

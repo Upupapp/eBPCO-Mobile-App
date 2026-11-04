@@ -86,6 +86,10 @@ and the portal say and show the same things. Some lines above are superseded by 
   left off descriptions, and Close / Start Application at the foot.
 - **Timeline.** Each step in the status pill's words ("Under Review"), a second line only where it
   names the step ("Document check", "For approval"), back-to-back steps under one word shown once.
+- **Counts (demo recording, 5 Nov 2026).** Home says "1 application needs your action" ("2
+  applications need"); a replacement's stripped-metadata line says "were" for two or more. Review &
+  submit counts required documents only ("10 of 10 required attached", "None required"), with "and
+  n if applicable" under it, as the Documents step and the portal do.
 
 ## 1.0.2 (build 3), 4 Nov 2026
 
