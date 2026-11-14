@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +10,7 @@ import '../../domain/assessment_view.dart';
 import '../../domain/models.dart';
 import '../../domain/payment_history.dart';
 import '../../services/applications_service.dart';
+import '../../services/live_updates.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chrome.dart';
@@ -64,17 +67,42 @@ class _PaymentsListScreenState extends State<PaymentsListScreen> {
   /// Which orders the history was last loaded for, so a refresh with the same set does not reload it.
   String _historyKey = '';
 
+  /// Null only in a test that provides none.
+  LiveUpdates? _live;
+
   @override
   void initState() {
     super.initState();
     _search.addListener(() => setState(() {}));
+    _live = context.read<LiveUpdates?>()?..addListener(_onLiveChange);
     WidgetsBinding.instance.addPostFrameCallback((_) => context.read<ApplicationsService>().refresh());
   }
 
   @override
   void dispose() {
+    _live?.removeListener(_onLiveChange);
     _search.dispose();
     super.dispose();
+  }
+
+  static String _ordersKey(List<ApplicationSummary> orders) => orders.map((a) => '${a.id}:${a.paymentStatus}').join(',');
+
+  /// An Order of Payment issued, a payment confirmed or refused on the
+  /// server: the orders and the history again, the ones on screen staying
+  /// until the new ones are in.
+  void _onLiveChange() {
+    final changed = _live!.changed;
+    if (changed.contains(LiveTopic.applications) || changed.contains(LiveTopic.payments)) unawaited(_reloadQuietly());
+  }
+
+  Future<void> _reloadQuietly() async {
+    final apps = context.read<ApplicationsService>();
+    await apps.refreshQuietly();
+    if (!mounted) return;
+    final orders = apps.applications.where((a) => a.orderOfPayment != null).toList();
+    if (orders.isEmpty) return;
+    _historyKey = _ordersKey(orders);
+    await _loadHistory(orders, quiet: true);
   }
 
   Future<void> _refresh() async {
@@ -82,7 +110,8 @@ class _PaymentsListScreenState extends State<PaymentsListScreen> {
     await context.read<ApplicationsService>().refresh();
   }
 
-  Future<void> _loadHistory(List<ApplicationSummary> orders) async {
+  /// [quiet]: a background re-read, which on failure keeps the history shown.
+  Future<void> _loadHistory(List<ApplicationSummary> orders, {bool quiet = false}) async {
     try {
       final perOrder = await Future.wait(orders.map((app) async =>
           (await _api.getPayments(app.id)).map((e) => _HistoryItem(e, paymentAttemptView(e), app)).toList()));
@@ -94,6 +123,7 @@ class _PaymentsListScreenState extends State<PaymentsListScreen> {
         _historyError = false;
       });
     } on ApiError {
+      if (quiet && _history != null) return;
       if (mounted) setState(() => _historyError = true);
     }
   }
@@ -126,7 +156,7 @@ class _PaymentsListScreenState extends State<PaymentsListScreen> {
     final apps = context.watch<ApplicationsService>();
     final orders = apps.applications.where((a) => a.orderOfPayment != null).toList();
 
-    final key = orders.map((a) => '${a.id}:${a.paymentStatus}').join(',');
+    final key = _ordersKey(orders);
     if (key != _historyKey && orders.isNotEmpty) {
       _historyKey = key;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadHistory(orders));

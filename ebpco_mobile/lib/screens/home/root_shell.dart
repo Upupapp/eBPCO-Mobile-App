@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/permit_catalog.dart';
+import '../../services/applications_service.dart';
+import '../../services/earlier_records_service.dart';
+import '../../services/live_updates.dart';
 import '../../services/notifications_service.dart';
 import '../../services/push_service.dart';
+import '../../services/session_service.dart';
 import '../../theme/app_haptics.dart';
 import '../../theme/soft_widget.dart';
 import '../../widgets/nav/soft_nav_bar.dart';
@@ -32,8 +36,18 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 0;
+
+  /// Asks the server about once a second what changed, while this shell is
+  /// up (signed in) and the app is in the foreground. Null only in a test
+  /// that provides none.
+  LiveUpdates? _live;
+
+  /// Changed on the server while no tab listing them was on screen; read
+  /// again once one is (hidden tabs are not refreshed as things change).
+  bool _applicationsStale = false;
+  bool _earlierRecordsStale = false;
 
   static const _screens = [
     DashboardScreen(),
@@ -45,6 +59,12 @@ class _RootShellState extends State<RootShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _live = context.read<LiveUpdates?>()?..addListener(_onLiveChange);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle == null || lifecycle == AppLifecycleState.resumed || lifecycle == AppLifecycleState.inactive) {
+      _live?.start();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NotificationsService>().refresh();
       final tapped = PushService.instance.takePending();
@@ -52,10 +72,65 @@ class _RootShellState extends State<RootShell> {
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _live
+      ?..removeListener(_onLiveChange)
+      ..stop();
+    super.dispose();
+  }
+
+  /// Checks only while the app is on screen; back on screen, check at once.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _live?.start();
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _live?.stop();
+      case AppLifecycleState.inactive:
+        // Still on screen: a system sheet over it, or the other half of a
+        // split screen.
+        break;
+    }
+  }
+
+  /// Something changed on the server. Read again, keeping what is on screen
+  /// meanwhile: the notifications (the badge shows on every tab) and the
+  /// account (Home, Profile and the wizard read it) at once; the
+  /// applications only for the tab on screen, any other tab once it is
+  /// opened. An open application or Payments page reads its own.
+  void _onLiveChange() {
+    final changed = _live!.changed;
+    if (changed.contains(LiveTopic.notifications)) context.read<NotificationsService>().refreshQuietly();
+    if (changed.contains(LiveTopic.account)) context.read<SessionService>().refreshProfile().catchError((_) {});
+    if (changed.contains(LiveTopic.applications) || changed.contains(LiveTopic.payments)) _applicationsStale = true;
+    // The permits from before eBPCO an officer matched to the account (069).
+    if (changed.contains(LiveTopic.applications) || changed.contains(LiveTopic.account)) _earlierRecordsStale = true;
+    _refreshShownTab();
+  }
+
+  /// Home and Applications list the applications; Applications also lists
+  /// the earlier permits. Alerts and Profile read what is refreshed at once.
+  void _refreshShownTab() {
+    if (_applicationsStale && (_index == 0 || _index == 1)) {
+      _applicationsStale = false;
+      context.read<ApplicationsService>().refreshQuietly();
+    }
+    if (_earlierRecordsStale && _index == 1) {
+      _earlierRecordsStale = false;
+      context.read<EarlierRecordsService>().refresh();
+    }
+  }
+
   void _onTap(int index) {
     if (index == _index) return;
     AppHaptics.selection();
     setState(() => _index = index);
+    _refreshShownTab();
   }
 
   void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));

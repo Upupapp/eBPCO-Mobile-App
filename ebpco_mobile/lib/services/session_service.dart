@@ -123,7 +123,10 @@ class SessionService extends ChangeNotifier {
   /// [profile] sees the same, current record.
   Future<void> refreshProfile() async {
     if (!isSignedIn) return;
-    _profile = await _api.me();
+    final profile = await _api.me();
+    // Signed out while this was out (live updates read it in the background).
+    if (!isSignedIn) return;
+    _profile = profile;
     if (_profile?.hasPhoto != true) _photo = null;
     notifyListeners();
   }

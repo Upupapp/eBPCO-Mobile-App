@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -23,8 +25,15 @@ class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
-  final http.Client _http = http.Client();
+  http.Client _http = http.Client();
   final _uuid = const Uuid();
+
+  /// Tests answer requests with a fake (`MockClient`) instead of the network.
+  @visibleForTesting
+  set httpClient(http.Client client) => _http = client;
+
+  /// How close to expiry the access token is refreshed before a request.
+  static const _refreshMargin = Duration(seconds: 30);
 
   /// `Content-Type` only when a JSON body is sent: the server refuses a
   /// JSON-labelled request with an empty body (a bare DELETE included).
@@ -36,7 +45,7 @@ class ApiClient {
       // seconds, and refreshing only after a 401 would mean re-sending a
       // multi-hundred-KB body a second time. Same trade-off the web
       // portals' `scheduleRefresh` background timer makes.
-      if (await TokenStore.instance.isExpiringWithin(const Duration(seconds: 30))) {
+      if (await TokenStore.instance.isExpiringWithin(_refreshMargin)) {
         await _tryRefresh();
       }
       final token = await TokenStore.instance.accessToken();
@@ -55,6 +64,7 @@ class ApiClient {
   }
 
   Future<void> _doRefresh() async {
+    final epoch = TokenStore.instance.epoch;
     final refreshToken = await TokenStore.instance.refreshToken();
     if (refreshToken == null) return;
     try {
@@ -63,6 +73,9 @@ class ApiClient {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': refreshToken}),
       );
+      // Signed out while this was out (the live-updates check refreshes in
+      // the background): storing its tokens would sign the citizen back in.
+      if (epoch != TokenStore.instance.epoch) return;
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
         await TokenStore.instance.save(
@@ -120,6 +133,55 @@ class ApiClient {
       return _handle(response, path: path, auth: auth) as T;
     } on http.ClientException {
       throw const ApiError(0, null, true);
+    }
+  }
+
+  /// When [quietGet] last started a token refresh itself, on a clock that
+  /// changing the phone's time does not move.
+  final _clock = Stopwatch()..start();
+  Duration? _quietRefreshAt;
+
+  /// A background check made about once a second (`LiveUpdates`, `GET
+  /// /me/changes`): the decoded body of a 2xx answer, or null for anything
+  /// else — no signal, a timeout, a 5xx and a 401 alike. It never throws and
+  /// never calls [onSessionExpired]: a failed background check is not the
+  /// citizen's session ending (a request the citizen makes still signs them
+  /// out on a 401, as before).
+  ///
+  /// While the access token is about to expire nothing is sent with it: the
+  /// usual refresh runs first (the same one any other request would share),
+  /// then the check goes out with the new token. A refresh that does not
+  /// help (no signal, or the refresh token refused) is tried again from here
+  /// at most every 15 seconds, and the checks are skipped until then.
+  /// Reads no keychain while the token is fresh: [TokenStore] keeps it in
+  /// memory.
+  Future<Object?> quietGet(String path, {Duration timeout = const Duration(seconds: 10)}) async {
+    try {
+      if (await TokenStore.instance.isExpiringWithin(_refreshMargin)) {
+        final now = _clock.elapsed;
+        final last = _quietRefreshAt;
+        if (last != null && now - last < const Duration(seconds: 15)) return null;
+        _quietRefreshAt = now;
+        await _tryRefresh().timeout(timeout);
+        if (await TokenStore.instance.isExpiringWithin(_refreshMargin)) return null;
+      }
+      final token = await TokenStore.instance.accessToken();
+      if (token == null) return null;
+      // Aborted rather than abandoned at the timeout, so a stalled check is
+      // never still out when the next one goes.
+      final abort = Completer<void>();
+      final timer = Timer(timeout, abort.complete);
+      try {
+        final request = http.AbortableRequest('GET', _uri(path), abortTrigger: abort.future)
+          ..headers['Authorization'] = 'Bearer $token';
+        final response = await http.Response.fromStream(await _http.send(request));
+        if (response.statusCode < 200 || response.statusCode >= 300) return null;
+        return _decode(response);
+      } finally {
+        timer.cancel();
+      }
+    } catch (_) {
+      return null;
     }
   }
 

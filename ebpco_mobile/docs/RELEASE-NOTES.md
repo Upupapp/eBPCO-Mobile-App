@@ -90,6 +90,14 @@ and the portal say and show the same things. Some lines above are superseded by 
   applications need"); a replacement's stripped-metadata line says "were" for two or more. Review &
   submit counts required documents only ("10 of 10 required attached", "None required"), with "and
   n if applicable" under it, as the Documents step and the portal do.
+- **Live updates (15 Nov 2026).** While the app is open and signed in, it asks the server what
+  changed about once a second (`GET /me/changes`, one check at a time) and refreshes in place, with
+  no spinner: the Alerts badge and feed and the account at once; the tab on screen (Home,
+  Applications); an open application (status, timeline, documents, payment) and the Payments page.
+  A tab that was hidden catches up when opened. The checks stop in the background and at sign-out,
+  check again at once on return, and never sign anyone out when they fail (they slow to one every
+  8 seconds while failing). iOS, which gets no push, now updates live too. Needs the server's
+  `GET /me/changes` deployed first.
 
 ## 1.0.2 (build 3), 4 Nov 2026
 

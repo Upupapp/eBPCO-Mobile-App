@@ -17,6 +17,7 @@ import '../../domain/permit_delivery.dart';
 import '../../domain/permit_forms.dart';
 import '../../domain/upload_file.dart';
 import '../../services/applications_service.dart';
+import '../../services/live_updates.dart';
 import '../../services/session_service.dart';
 import '../../services/upload_limits.dart';
 import '../../theme/app_status.dart';
@@ -64,10 +65,37 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   String? _error;
   String? _busyDocumentKey;
 
+  /// Null only in a test that provides none.
+  LiveUpdates? _live;
+
+  /// Something changed while a read was out, possibly read before the
+  /// change: one more read after it.
+  bool _readAgain = false;
+
   @override
   void initState() {
     super.initState();
+    _live = context.read<LiveUpdates?>()?..addListener(_onLiveChange);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _live?.removeListener(_onLiveChange);
+    super.dispose();
+  }
+
+  /// An application or a payment of this citizen changed on the server (the
+  /// check does not say which one): read the page again — status, timeline,
+  /// documents, payment — keeping it on screen meanwhile.
+  void _onLiveChange() {
+    final changed = _live!.changed;
+    if (!changed.contains(LiveTopic.applications) && !changed.contains(LiveTopic.payments)) return;
+    if (_loading) {
+      _readAgain = true;
+    } else {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -117,6 +145,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       setState(() => _error = e.citizenMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
+      if (mounted && _readAgain) {
+        _readAgain = false;
+        _load();
+      }
     }
   }
 

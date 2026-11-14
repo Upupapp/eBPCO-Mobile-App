@@ -8,6 +8,7 @@ import 'screens/splash/splash_screen.dart';
 import 'services/applications_service.dart';
 import 'services/businesses_service.dart';
 import 'services/earlier_records_service.dart';
+import 'services/live_updates.dart';
 import 'services/notifications_service.dart';
 import 'services/push_service.dart';
 import 'services/session_service.dart';
@@ -34,6 +35,11 @@ class _UnfocusOnNavigate extends NavigatorObserver {
 class EbpcoMobileApp extends StatelessWidget {
   EbpcoMobileApp({super.key}) {
     ApiClient.instance.onSessionExpired = _onSessionExpired;
+    // Signed out, however that happened: the live checks stop and forget
+    // the last answer, which was about this citizen.
+    _session.addListener(() {
+      if (!_session.isSignedIn) _live.reset();
+    });
     PushService.instance
       ..onForegroundMessage = () {
         _notifications.refresh();
@@ -78,6 +84,10 @@ class EbpcoMobileApp extends StatelessWidget {
   final _businesses = BusinessesService();
   final _earlierRecords = EarlierRecordsService();
 
+  /// Started and stopped by the signed-in shell (RootShell) as the app comes
+  /// and goes; never checks while no one is signed in.
+  late final _live = LiveUpdates(canCheck: () => _session.isSignedIn);
+
   /// Same outcome as the portal's interceptor on a real 401: drop the
   /// session, clear every cached list, and go to Sign in — once, however
   /// many requests failed together.
@@ -101,6 +111,7 @@ class EbpcoMobileApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: _notifications),
         ChangeNotifierProvider.value(value: _businesses),
         ChangeNotifierProvider.value(value: _earlierRecords),
+        ChangeNotifierProvider.value(value: _live),
       ],
       child: MaterialApp(
         title: 'eBPCO',
